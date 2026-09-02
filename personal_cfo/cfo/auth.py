@@ -17,15 +17,85 @@ via the shared password sees the same data (there's no way to tell them
 apart), while each distinct Google account gets its own isolated data --
 see cfo.db.current_user_id() and its "local" fallback for how that's
 scoped.
+
+The password gate is rate-limited per client IP (5 wrong attempts locks
+that IP out, doubling in duration on repeated abuse, up to an hour) --
+see _record_failed_attempt() below. This matters once the app is
+reachable over the internet rather than just localhost; Google Sign-In
+doesn't need this, since Google already rate-limits its own login.
 """
 from __future__ import annotations
 
 import hmac
 import os
+import threading
+import time
 
 import streamlit as st
 
 _SESSION_FLAG = "_authenticated"
+
+# --------------------------------------------------------- rate limiting
+# In-memory, per-process -- shared across every browser session hitting
+# this server (that's the point: a session-scoped counter is trivially
+# defeated by opening a new tab), but it resets on restart/redeploy and
+# doesn't share state across multiple server instances if this app is
+# ever scaled horizontally. Good enough for the single-instance hosting
+# this app is actually built for; a real distributed rate limiter needs
+# a shared store (Redis, a database table) this app doesn't otherwise need.
+_RATE_LIMIT_LOCK = threading.Lock()
+_failed_attempts: dict[str, list[float]] = {}
+_lockouts: dict[str, tuple[float, int]] = {}  # identifier -> (locked_until, strikes)
+
+_MAX_ATTEMPTS = 5
+_WINDOW_SECONDS = 15 * 60
+_BASE_LOCKOUT_SECONDS = 5 * 60
+_MAX_LOCKOUT_SECONDS = 60 * 60
+
+
+def _client_identifier() -> str:
+    """Best-effort per-client key for rate limiting -- the viewer's IP
+    address if Streamlit can determine one (it reads this from the
+    request, including any X-Forwarded-For a reverse proxy sets, which
+    covers hosts like Render). Falls back to a single shared "unknown"
+    bucket if not: still real rate limiting, just coarser -- everyone
+    without a resolvable IP shares one limit rather than each being
+    unlimited."""
+    try:
+        return st.context.ip_address or "unknown"
+    except Exception:  # noqa: BLE001 -- context can be unavailable early in a run
+        return "unknown"
+
+
+def _seconds_locked_out(identifier: str) -> float:
+    with _RATE_LIMIT_LOCK:
+        locked_until, _strikes = _lockouts.get(identifier, (0.0, 0))
+    return max(0.0, locked_until - time.time())
+
+
+def _record_failed_attempt(identifier: str) -> None:
+    now = time.time()
+    with _RATE_LIMIT_LOCK:
+        attempts = [t for t in _failed_attempts.get(identifier, []) if now - t < _WINDOW_SECONDS]
+        attempts.append(now)
+        if len(attempts) >= _MAX_ATTEMPTS:
+            _, strikes = _lockouts.get(identifier, (0.0, 0))
+            strikes += 1
+            duration = min(_BASE_LOCKOUT_SECONDS * (2 ** (strikes - 1)), _MAX_LOCKOUT_SECONDS)
+            _lockouts[identifier] = (now + duration, strikes)
+            attempts = []
+        _failed_attempts[identifier] = attempts
+
+
+def _record_successful_attempt(identifier: str) -> None:
+    with _RATE_LIMIT_LOCK:
+        _failed_attempts.pop(identifier, None)
+        _lockouts.pop(identifier, None)
+
+
+def _format_duration(seconds: float) -> str:
+    minutes = max(1, round(seconds / 60))
+    return f"{minutes} minute" + ("" if minutes == 1 else "s")
 
 
 def is_password_protected() -> bool:
@@ -106,14 +176,25 @@ def check_authentication() -> None:
             st.caption("or")
 
     if password:
-        with st.form("password_gate"):
-            entered = st.text_input("Password", type="password")
-            submitted = st.form_submit_button("Unlock")
-        if submitted:
-            if hmac.compare_digest(entered, password):
-                st.session_state[_SESSION_FLAG] = True
-                st.rerun()
-            else:
-                st.error("Incorrect password.")
+        identifier = _client_identifier()
+        remaining = _seconds_locked_out(identifier)
+        if remaining > 0:
+            st.error(f"Too many incorrect attempts. Try again in {_format_duration(remaining)}.")
+        else:
+            with st.form("password_gate"):
+                entered = st.text_input("Password", type="password")
+                submitted = st.form_submit_button("Unlock")
+            if submitted:
+                if hmac.compare_digest(entered, password):
+                    _record_successful_attempt(identifier)
+                    st.session_state[_SESSION_FLAG] = True
+                    st.rerun()
+                else:
+                    _record_failed_attempt(identifier)
+                    remaining = _seconds_locked_out(identifier)
+                    if remaining > 0:
+                        st.error(f"Too many incorrect attempts. Try again in {_format_duration(remaining)}.")
+                    else:
+                        st.error("Incorrect password.")
 
     st.stop()
