@@ -1,6 +1,5 @@
 from datetime import date
 
-import pandas as pd
 import streamlit as st
 
 from cfo import db
@@ -11,7 +10,7 @@ setup_page("Transactions")
 st.title("Transactions")
 st.caption("Income and expenses, categorized.")
 
-add_tab, import_tab, list_tab = st.tabs(["Add manually", "Import CSV", "All transactions"])
+add_tab, list_tab = st.tabs(["Add manually", "All transactions"])
 
 with add_tab:
     with st.form("add_txn_form", clear_on_submit=True):
@@ -29,34 +28,9 @@ with add_tab:
             else:
                 st.warning("Enter a description and a positive amount.")
 
-with import_tab:
-    st.markdown(
-        "Upload a CSV with columns: `date, description, category, type, amount` "
-        "(`type` is `income` or `expense`). Rows that don't match are skipped."
-    )
-    uploaded = st.file_uploader("CSV file", type=["csv"])
-    if uploaded is not None:
-        try:
-            raw = pd.read_csv(uploaded)
-            raw.columns = [c.strip().lower() for c in raw.columns]
-            rename_map = {"date": "txn_date", "type": "txn_type"}
-            raw = raw.rename(columns=rename_map)
-            required = {"txn_date", "description", "category", "txn_type", "amount"}
-            missing = required - set(raw.columns)
-            if missing:
-                st.error(f"CSV is missing required columns: {sorted(missing)}")
-            else:
-                raw["txn_date"] = pd.to_datetime(raw["txn_date"], errors="coerce").dt.date.astype(str)
-                raw["txn_type"] = raw["txn_type"].str.strip().str.lower()
-                raw = raw[raw["txn_type"].isin(["income", "expense"])]
-                raw["amount"] = pd.to_numeric(raw["amount"], errors="coerce").abs()
-                raw = raw.dropna(subset=["txn_date", "description", "category", "amount"])
-                st.dataframe(raw, use_container_width=True, hide_index=True)
-                if st.button(f"Import {len(raw)} transactions"):
-                    count = db.add_transactions_bulk(raw)
-                    st.success(f"Imported {count} transactions.")
-        except Exception as exc:  # noqa: BLE001 -- surface any parse error to the user
-            st.error(f"Couldn't read that CSV: {exc}")
+    st.caption("Importing a bank, brokerage, credit card, mortgage, or HELOC statement? "
+               "Use **Import Statements** in the sidebar instead -- it handles CSV/Excel exports "
+               "and PDF statements, and can update account balances too.")
 
 with list_tab:
     transactions = db.list_transactions()

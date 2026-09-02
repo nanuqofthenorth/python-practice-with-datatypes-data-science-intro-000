@@ -126,6 +126,11 @@ def delete_account(account_id: int) -> None:
         conn.execute("DELETE FROM accounts WHERE id = ?", (account_id,))
 
 
+def get_account(account_id: int) -> pd.Series | None:
+    df = _read("SELECT * FROM accounts WHERE id = ?", (account_id,))
+    return None if df.empty else df.iloc[0]
+
+
 # --------------------------------------------------------- net worth history
 def list_snapshots() -> pd.DataFrame:
     return _read("SELECT * FROM net_worth_snapshots ORDER BY snapshot_date")
@@ -176,6 +181,16 @@ def add_transactions_bulk(df: pd.DataFrame) -> int:
 def delete_transaction(txn_id: int) -> None:
     with get_conn() as conn:
         conn.execute("DELETE FROM transactions WHERE id = ?", (txn_id,))
+
+
+def transaction_fingerprints() -> set[tuple[str, str, float]]:
+    """(date, description, amount) tuples already in the ledger, used to
+    flag likely-duplicate rows when importing a statement that overlaps
+    a previous import."""
+    df = _read("SELECT txn_date, description, amount FROM transactions")
+    if df.empty:
+        return set()
+    return {(r.txn_date, r.description.strip().lower(), round(r.amount, 2)) for r in df.itertuples()}
 
 
 # ------------------------------------------------------------------ budgets
