@@ -91,7 +91,7 @@ else:
         "this somewhere reachable over a network, set the `PERSONAL_CFO_PASSWORD` environment variable "
         "before launching to require a password once per browser session:"
     )
-    st.code('PERSONAL_CFO_PASSWORD="your-password" streamlit run app.py', language="bash")
+    st.code('PERSONAL_CFO_PASSWORD="your-password" streamlit run Home.py', language="bash")
     st.caption(
         "This is a single shared password, not a full accounts system -- it closes the gap between "
         "\"built for localhost\" and \"reachable from anywhere,\" not a login for multiple separate people. "

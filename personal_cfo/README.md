@@ -9,7 +9,7 @@ of plain-language insights, the way a CFO would brief you.
 ```bash
 cd personal_cfo
 pip install -r requirements.txt
-streamlit run app.py
+streamlit run Home.py
 ```
 
 Then open the URL Streamlit prints (usually http://localhost:8501).
@@ -366,7 +366,7 @@ The Advisor page and the Dashboard's CFO Briefing are powered by the
 default**. To turn them on, either:
 
 - set the `ANTHROPIC_API_KEY` environment variable before running
-  `streamlit run app.py`, or
+  `streamlit run Home.py`, or
 - paste a key into the **AI Advisor setup** panel in the sidebar (kept only
   in that browser session's memory -- never written to disk).
 

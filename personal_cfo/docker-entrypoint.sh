@@ -21,7 +21,7 @@ server_metadata_url = "https://accounts.google.com/.well-known/openid-configurat
 EOF
 fi
 
-exec streamlit run app.py \
+exec streamlit run Home.py \
     --server.port="${PORT:-8501}" \
     --server.address=0.0.0.0 \
     --server.headless=true
