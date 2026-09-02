@@ -115,6 +115,12 @@ handing the URL to more people than that.
   transactions as CSV, and see whether password protection is on. See
   "Backup, restore & locking it down" below.
 
+Two more things live inside existing pages rather than getting their own:
+a **Recurring & subscriptions** tab on Transactions (see "Recurring
+transactions" below), and a **federal tax estimate** on Profile, once
+you've set a filing status and logged some income (see "Filing status &
+the federal tax estimate" below).
+
 ## Backup, restore & locking it down
 
 **Backup.** Settings has a **Download backup** button -- a complete,
@@ -158,7 +164,13 @@ network, or who just wants a lock screen:
 
 - Set the `PERSONAL_CFO_PASSWORD` environment variable before launching to
   require a password once per browser session before anything renders.
-  It's a single shared password, not a user-accounts system.
+  It's a single shared password, not a user-accounts system. Rate-limited
+  per client IP -- 5 wrong attempts locks that IP out for 5 minutes,
+  doubling on repeated abuse up to an hour -- so it isn't trivially
+  brute-forceable once the app is reachable over the internet. This is an
+  in-memory, per-process limit: it resets on restart and (if this app is
+  ever scaled to multiple server instances, which it isn't by default)
+  doesn't share state across them.
 - **Google Sign-In**, via Streamlit's own native `st.login()` (Authlib
   under the hood) -- opt in by copying `.streamlit/secrets.toml.example`
   to `.streamlit/secrets.toml` and filling in a real OAuth client you
@@ -172,16 +184,36 @@ network, or who just wants a lock screen:
   developer menu app-wide (`toolbarMode = "viewer"`) -- a one-click cloud
   deploy prompt is a bad fit sitting on top of financial and personal data.
 
-**Biometric login (Face ID / Touch ID / Windows Hello) isn't built.**
-Doing that as a standalone feature means implementing WebAuthn/passkeys --
-a browser-side JavaScript credential ceremony plus server-side
-cryptographic challenge/response -- with nothing in Streamlit to build on.
-That's a real, security-critical feature to get right, not something to
-bolt on quickly; getting it wrong would be worse than not having it. If
-you already have a passkey configured on your Google account, Google's
-own sign-in screen will typically prompt for it automatically, which may
-already deliver what "biometric login" was after without a separate
-implementation.
+**Biometric login (Face ID / Touch ID / Windows Hello) in the web app
+itself isn't built.** Doing that as a standalone web feature means
+implementing WebAuthn/passkeys -- a browser-side JavaScript credential
+ceremony plus server-side cryptographic challenge/response -- with
+nothing in Streamlit to build on. That's a real, security-critical
+feature to get right, not something to bolt on quickly; getting it wrong
+would be worse than not having it. If you already have a passkey
+configured on your Google account, Google's own sign-in screen will
+typically prompt for it automatically, which may already deliver what
+"biometric login" was after without a separate implementation.
+Separately, the **iOS wrapper app** (`ios/`) does add real Face ID/Touch
+ID -- as a device-local lock on that one phone, layered on top of
+whichever of the above the hosted app itself uses, not a replacement for
+it. See `ios/README.md`.
+
+**Encryption at rest is opt-in.** Set the `DB_ENCRYPTION_KEY` environment
+variable and the database file (plus every backup, manual or automated)
+is encrypted with [SQLCipher](https://www.zetetic.net/sqlcipher/) instead
+of stored as plain SQLite -- unreadable on disk without the key, not just
+access-controlled. Off by default, like every other opt-in security
+feature in this app. **If you're turning this on for a database that
+already exists** (not a brand-new deployment), run
+`DB_ENCRYPTION_KEY="your-new-key" python3 scripts/encrypt_existing_db.py`
+once first -- SQLCipher can't open a plaintext file once a key is set, so
+simply setting the environment variable against existing data would make
+it unreadable, not encrypt it. The script keeps your original plaintext
+file as `cfo.db.pre-encryption-backup`; verify the app works against the
+encrypted copy, then delete that yourself once you're confident. Losing
+the key means losing the data -- there's no recovery, by design; store it
+somewhere durable (your host's secret manager), not a note to yourself.
 
 **Multiple people, one running app.** Without Google Sign-In configured,
 everyone who opens the app -- or unlocks it with the shared password --
@@ -208,13 +240,9 @@ make those links clickable.
 Filing status uses the actual IRS categories (Single, Married Filing
 Jointly, Married Filing Separately, Head of Household, Qualifying
 Surviving Spouse) rather than a plain single/married toggle, since
-jointly vs. separately is the distinction with real tax consequences. It's
-stored but not used anywhere yet -- the health score and AI Advisor don't
-factor it in. Turning it into actual tax-aware guidance (bracket-aware
-suggestions, standard-vs-itemized tradeoffs) is a reasonable next step but
-a deliberately separate one, since it means committing to a tax year and a
-scope (federal only vs. state too) for guidance that should be right
-rather than approximately right.
+jointly vs. separately is the distinction with real tax consequences. See
+"Filing status & the federal tax estimate" below for what it now drives.
+The Dashboard's health score still doesn't factor it in.
 
 The social fields are plain links, not a sync: paste a handle or URL and
 it renders as a button, nothing more. No photo, bio, or verification is
@@ -237,6 +265,47 @@ published. The Profile page says so explicitly and has a disabled
 not a working toggle. Building the real thing would mean real infrastructure
 (accounts, a backend, moderation, consent flows) that's a deliberately
 separate decision from storing a profile locally today.
+
+## Filing status & the federal tax estimate
+
+Once you set a filing status on the Profile page and have logged some
+income, a **federal tax estimate** appears there: estimated annual income
+(the average of your last up-to-12 months of logged income transactions,
+annualized), your marginal federal bracket, effective federal rate, and
+the standard deduction applied. Deliberately narrow, by design:
+
+- **Federal only** -- no state, local, or payroll (FICA) tax.
+- **Standard deduction only** -- no itemizing, no credits, no AMT, no
+  capital-gains preferential rates.
+- **Illustrative, not a real return** -- "income" is inferred from
+  transactions logged in this app, not W-2/1099 data, and doesn't account
+  for pre-tax deductions (401(k), HSA, etc.) that would lower actual
+  taxable income.
+
+The tax year and bracket figures (`cfo/tax.py`) are hand-entered from a
+specific IRS Revenue Procedure, named in the code and on the page --
+they do not update themselves and need replacing by hand every year.
+Verify against [irs.gov](https://www.irs.gov) before relying on this for
+anything real; it's a planning estimate, not tax advice.
+
+If you use the **AI Advisor**, your filing status and this tax estimate
+are included in the financial snapshot it sends to Anthropic's API (see
+"AI Advisor & CFO Briefing" below) so it can give bracket-aware answers
+(e.g. traditional vs. Roth contributions). Your name, age, photo, bio,
+and social links are never included, regardless.
+
+## Recurring transactions
+
+The Transactions page has a **Recurring & subscriptions** tab that
+automatically flags expenses showing up with the same description and a
+similar amount in most recent months -- subscriptions, rent, recurring
+bills -- without you having to spot the pattern by eye. Matching
+(`cfo.calculations.detect_recurring_transactions`) is by exact,
+case/whitespace-insensitive description text, not fuzzy: a description
+that changes slightly month to month (a trailing reference number or
+date) won't be caught. Needs at least 3 months of matching history, with
+no more than one month ever skipped in a row, to avoid flagging a
+coincidental one-off repeat.
 
 ## Importing statements
 
@@ -295,11 +364,13 @@ default**. To turn them on, either:
   in that browser session's memory -- never written to disk).
 
 Every question you ask, and the periodic briefing, sends a JSON snapshot of
-your accounts, recent transactions, budget, debts, and goals to Anthropic's
-API so the model can reason over real numbers instead of guessing. The
-Advisor page has a "What data is sent to Claude" panel that shows you the
-exact payload. This uses your API key's own usage/billing -- each question
-and each briefing regeneration is a real API call.
+your accounts, recent transactions, budget, debts, goals, and -- if you've
+set one -- your filing status and federal tax estimate, to Anthropic's
+API so the model can reason over real numbers instead of guessing. Your
+name, age, photo, bio, and social links are never included, no matter
+what. The Advisor page has a "What data is sent to Claude" panel that
+shows you the exact payload. This uses your API key's own usage/billing --
+each question and each briefing regeneration is a real API call.
 
 The CFO Briefing is cached per financial snapshot (not regenerated on every
 page load) and has its own Regenerate button, so it only calls the API when
@@ -308,14 +379,48 @@ your data has actually changed or you ask it to.
 ## Data & privacy
 
 Everything except the AI Advisor and CFO Briefing is entirely local: all
-data lives in a SQLite file at `personal_cfo/data/cfo.db`, and nothing is
-sent anywhere. The AI features are the one exception, are opt-in (no API
-key, no calls), and only ever send the financial snapshot described above --
+data lives in a SQLite file at `personal_cfo/data/cfo.db` (optionally
+encrypted at rest -- see "Locking it down" above), and nothing is sent
+anywhere. The AI features are the one exception, are opt-in (no API key,
+no calls), and only ever send the financial snapshot described above --
 never your API key to anywhere but Anthropic, and never any data to any
-third party beyond that.
+third party beyond that. See `PRIVACY_POLICY.md` and `TERMS.md` for the
+full, App-Store-facing version of this (also reachable at
+`/Privacy_and_Terms` in the running app, without needing to sign in).
+
+## Testing
+
+```bash
+cd personal_cfo
+pip install -r requirements-dev.txt
+python3 -m pytest tests/ -v
+```
+
+Covers the multi-tenancy/isolation logic, backup/restore (including
+legacy-format migration), the health score and debt payoff simulator, the
+recurring-transaction detector, the tax-estimate math, the password
+gate's rate limiter, and encryption at rest -- run automatically on every
+push via GitHub Actions (`.github/workflows/personal-cfo-tests.yml`).
+This is unit/integration coverage of the calculation and persistence
+layers; it doesn't replace clicking through the actual UI, which is worth
+doing by hand for anything touching a page directly.
+
+## iOS app & App Store
+
+`ios/` has a SwiftUI wrapper -- a WKWebView pointed at your hosted app,
+gated by Face ID/Touch ID -- and `APP_STORE_CHECKLIST.md` walks through
+Apple Developer enrollment, App Store Connect setup, the privacy
+nutrition label, screenshots, and TestFlight for a friends-and-family
+beta before a full release. See `ios/README.md` first: this code has
+never been compiled (written without access to Xcode/a Mac), so budget
+time to get it actually building before anything else in the checklist
+matters.
 
 ## Tech
 
-Python, [Streamlit](https://streamlit.io) for the UI, SQLite for storage,
+Python, [Streamlit](https://streamlit.io) for the UI, SQLite (optionally
+[SQLCipher](https://www.zetetic.net/sqlcipher/)-encrypted) for storage,
 [Plotly](https://plotly.com/python/) for charts, the
-[Anthropic API](https://docs.anthropic.com) for the Advisor and Briefing.
+[Anthropic API](https://docs.anthropic.com) for the Advisor and Briefing,
+[pytest](https://pytest.org) for tests, Docker for hosting, and a SwiftUI
+wrapper for iOS.

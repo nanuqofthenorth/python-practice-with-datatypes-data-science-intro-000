@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Not a standalone Info.plist -- these are the keys to ADD to the one
+  Xcode generates for you (see ../README.md, step 4). Xcode's modern
+  project format usually manages Info.plist entries via the target's
+  "Info" tab rather than a raw file you edit directly; either way, these
+  two keys need to end up in the target's Info.plist.
+-->
+<plist version="1.0">
+<dict>
+    <!-- Required by iOS any time an app calls LocalAuthentication's
+         biometric APIs -- shown to the user the first time Face ID is
+         requested. Without this key, the app crashes on that call. -->
+    <key>NSFaceIDUsageDescription</key>
+    <string>Personal CFO uses Face ID to keep your financial data private if someone else picks up your phone.</string>
+</dict>
+</plist>
