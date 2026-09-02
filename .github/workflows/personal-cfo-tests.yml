@@ -28,6 +28,8 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
+      - name: Install optional encryption-at-rest dependency
+        run: pip install -r requirements-encryption.txt
 
       - name: Run tests
         run: python -m pytest tests/ -v

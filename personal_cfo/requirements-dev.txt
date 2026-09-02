@@ -1,2 +1,7 @@
 -r requirements.txt
 pytest>=8.0
+
+# The encryption-at-rest tests (test_dbconn_encryption.py,
+# test_encrypt_existing_db_script.py) skip themselves automatically if
+# sqlcipher3 isn't installed -- install requirements-encryption.txt too
+# for full coverage, but it's not required to run the rest of the suite.

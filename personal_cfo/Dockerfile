@@ -2,8 +2,13 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY requirements.txt requirements-encryption.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
+# Encryption at rest (DB_ENCRYPTION_KEY) is optional and off by default,
+# but its wheel is reliably available on Linux (unlike some local
+# dev machines -- see requirements.txt), so hosted deployments get the
+# option "for free" without every local install needing it.
+RUN pip install --no-cache-dir -r requirements-encryption.txt
 
 COPY . .
 RUN chmod +x docker-entrypoint.sh

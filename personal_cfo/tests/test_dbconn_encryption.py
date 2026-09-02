@@ -13,6 +13,8 @@ import sys
 import textwrap
 from pathlib import Path
 
+import pytest
+
 CFO_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -42,6 +44,7 @@ def test_unset_key_uses_plain_sqlite3(tmp_path, monkeypatch_env_without_key):
 
 
 def test_set_key_encrypts_and_round_trips(tmp_path, base_env):
+    pytest.importorskip("sqlcipher3", reason="optional dependency -- see requirements-encryption.txt")
     db_path = tmp_path / "enc.db"
     env = {**base_env, "DB_ENCRYPTION_KEY": "test-passphrase"}
 
@@ -81,6 +84,7 @@ def test_set_key_encrypts_and_round_trips(tmp_path, base_env):
 
 
 def test_wrong_key_cannot_read_encrypted_db(tmp_path, base_env):
+    pytest.importorskip("sqlcipher3", reason="optional dependency -- see requirements-encryption.txt")
     db_path = tmp_path / "enc2.db"
     write_env = {**base_env, "DB_ENCRYPTION_KEY": "right-key"}
     _run(
@@ -114,6 +118,7 @@ def test_key_with_special_characters_is_handled_safely(tmp_path, base_env):
     """The key is interpolated into a PRAGMA statement (PRAGMA doesn't
     support bound parameters) -- must not break on a key containing a
     single quote."""
+    pytest.importorskip("sqlcipher3", reason="optional dependency -- see requirements-encryption.txt")
     db_path = tmp_path / "enc3.db"
     tricky_key = "it's-a-tricky-key-with-'quotes'"
     env = {**base_env, "DB_ENCRYPTION_KEY": tricky_key}

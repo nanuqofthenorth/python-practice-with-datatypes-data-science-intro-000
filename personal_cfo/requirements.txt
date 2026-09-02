@@ -6,4 +6,9 @@ openpyxl>=3.1
 anthropic>=0.68
 Pillow>=10.0
 Authlib>=1.3.2
-sqlcipher3-binary>=0.5.0
+
+# sqlcipher3-binary (encryption at rest) is deliberately NOT listed here --
+# it's an opt-in feature (DB_ENCRYPTION_KEY), and its wheels aren't
+# available for every platform/Python combination (notably some macOS
+# setups). Only install it if you're turning encryption on -- see
+# requirements-encryption.txt and the README's "Locking it down" section.

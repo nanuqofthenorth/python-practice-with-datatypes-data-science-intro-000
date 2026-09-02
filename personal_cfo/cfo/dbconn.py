@@ -29,7 +29,16 @@ from pathlib import Path
 _ENCRYPTION_KEY = os.environ.get("DB_ENCRYPTION_KEY") or None
 
 if _ENCRYPTION_KEY:
-    from sqlcipher3 import dbapi2 as _driver
+    try:
+        from sqlcipher3 import dbapi2 as _driver
+    except ImportError as exc:
+        raise ImportError(
+            "DB_ENCRYPTION_KEY is set, but the sqlcipher3 package isn't installed. "
+            "Install it with: pip3 install -r requirements-encryption.txt "
+            "(it's not part of the base requirements.txt since its wheels aren't "
+            "available for every platform). If you don't actually want encryption "
+            "at rest, unset DB_ENCRYPTION_KEY instead."
+        ) from exc
 else:
     import sqlite3 as _driver
 

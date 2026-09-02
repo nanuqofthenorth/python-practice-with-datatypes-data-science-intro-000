@@ -9,6 +9,8 @@ import sqlite3
 import textwrap
 from pathlib import Path
 
+import pytest
+
 CFO_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -30,6 +32,7 @@ def _run_script(db_path: Path, env: dict) -> subprocess.CompletedProcess:
 
 
 def test_migrates_plaintext_db_to_encrypted(tmp_path, base_env):
+    pytest.importorskip("sqlcipher3", reason="optional dependency -- see requirements-encryption.txt")
     db_path = tmp_path / "cfo.db"
     conn = sqlite3.connect(db_path)
     conn.execute("CREATE TABLE accounts (id INTEGER PRIMARY KEY, user_id TEXT, name TEXT, balance REAL)")
@@ -78,6 +81,7 @@ def test_refuses_to_run_without_a_key(tmp_path, base_env):
 
 
 def test_no_op_when_no_database_exists_yet(tmp_path, base_env):
+    pytest.importorskip("sqlcipher3", reason="optional dependency -- see requirements-encryption.txt")
     db_path = tmp_path / "does-not-exist.db"
     env = {**base_env, "DB_ENCRYPTION_KEY": "new-key"}
     result = _run_script(db_path, env)

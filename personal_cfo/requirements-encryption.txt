@@ -1,0 +1,8 @@
+# Only needed if you're turning on encryption at rest (DB_ENCRYPTION_KEY --
+# see README "Locking it down"). Not part of requirements.txt because its
+# wheels aren't available for every platform/Python combination, and the
+# base app should install cleanly everywhere regardless of whether you
+# want this optional feature.
+#
+# Install with: pip3 install -r requirements-encryption.txt
+sqlcipher3-binary>=0.5.0

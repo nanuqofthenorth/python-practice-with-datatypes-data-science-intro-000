@@ -199,12 +199,19 @@ ID -- as a device-local lock on that one phone, layered on top of
 whichever of the above the hosted app itself uses, not a replacement for
 it. See `ios/README.md`.
 
-**Encryption at rest is opt-in.** Set the `DB_ENCRYPTION_KEY` environment
-variable and the database file (plus every backup, manual or automated)
-is encrypted with [SQLCipher](https://www.zetetic.net/sqlcipher/) instead
-of stored as plain SQLite -- unreadable on disk without the key, not just
-access-controlled. Off by default, like every other opt-in security
-feature in this app. **If you're turning this on for a database that
+**Encryption at rest is opt-in and needs an extra install step.** Run
+`pip3 install -r requirements-encryption.txt` first (this is deliberately
+*not* part of the regular `pip3 install -r requirements.txt` -- its wheel
+isn't available for every platform/Python combination, notably some macOS
+setups, and the base app shouldn't fail to install for everyone just
+because of an optional feature). Then set the `DB_ENCRYPTION_KEY`
+environment variable and the database file (plus every backup, manual or
+automated) is encrypted with [SQLCipher](https://www.zetetic.net/sqlcipher/)
+instead of stored as plain SQLite -- unreadable on disk without the key,
+not just access-controlled. Off by default, like every other opt-in
+security feature in this app; if you never set `DB_ENCRYPTION_KEY`, you
+never need `requirements-encryption.txt` at all. **If you're turning this
+on for a database that
 already exists** (not a brand-new deployment), run
 `DB_ENCRYPTION_KEY="your-new-key" python3 scripts/encrypt_existing_db.py`
 once first -- SQLCipher can't open a plaintext file once a key is set, so
