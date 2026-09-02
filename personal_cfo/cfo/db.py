@@ -74,6 +74,16 @@ CREATE TABLE IF NOT EXISTS goals (
     current_amount REAL NOT NULL DEFAULT 0,
     target_date TEXT
 );
+
+CREATE TABLE IF NOT EXISTS profile (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    name TEXT NOT NULL DEFAULT '',
+    age INTEGER,
+    bio TEXT NOT NULL DEFAULT '',
+    photo BLOB,
+    photo_mime TEXT,
+    updated_at TEXT NOT NULL
+);
 """
 
 
@@ -251,6 +261,37 @@ def update_goal_progress(goal_id: int, current_amount: float) -> None:
 def delete_goal(goal_id: int) -> None:
     with get_conn() as conn:
         conn.execute("DELETE FROM goals WHERE id = ?", (goal_id,))
+
+
+# ------------------------------------------------------------------ profile
+def get_profile() -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT name, age, bio, photo, photo_mime, updated_at FROM profile WHERE id = 1"
+        ).fetchone()
+    if row is None:
+        return None
+    return {
+        "name": row[0], "age": row[1], "bio": row[2],
+        "photo": row[3], "photo_mime": row[4], "updated_at": row[5],
+    }
+
+
+def save_profile(name: str, age: int | None, bio: str, photo: bytes | None, photo_mime: str | None) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO profile (id, name, age, bio, photo, photo_mime, updated_at) "
+            "VALUES (1, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(id) DO UPDATE SET "
+            "name = excluded.name, age = excluded.age, bio = excluded.bio, "
+            "photo = excluded.photo, photo_mime = excluded.photo_mime, updated_at = excluded.updated_at",
+            (name, age, bio, photo, photo_mime, date.today().isoformat()),
+        )
+
+
+def clear_profile_photo() -> None:
+    with get_conn() as conn:
+        conn.execute("UPDATE profile SET photo = NULL, photo_mime = NULL WHERE id = 1")
 
 
 def has_any_data() -> bool:

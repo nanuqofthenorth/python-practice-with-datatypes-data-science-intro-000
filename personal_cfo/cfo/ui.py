@@ -21,6 +21,7 @@ def setup_page(page_title: str) -> None:
     with st.sidebar:
         st.markdown(f"### {APP_TITLE}")
         st.caption("Your finances, run like a business.")
+        render_profile_snippet()
         if not db.has_any_data():
             if st.button("Load sample data", use_container_width=True):
                 seed_sample_data()
@@ -28,6 +29,19 @@ def setup_page(page_title: str) -> None:
         st.divider()
         render_ai_settings()
         st.divider()
+
+
+def render_profile_snippet() -> None:
+    profile = db.get_profile()
+    if not profile or not profile.get("name"):
+        st.caption("No profile yet -- set one up on the Profile page.")
+        return
+    cols = st.columns([1, 3])
+    with cols[0]:
+        if profile.get("photo"):
+            st.image(profile["photo"], width=44)
+    with cols[1]:
+        st.markdown(f"**{profile['name']}**")
 
 
 def get_api_key() -> str | None:

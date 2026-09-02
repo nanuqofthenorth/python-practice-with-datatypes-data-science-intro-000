@@ -46,6 +46,26 @@ transactions right away.
   the payoff timeline and total interest.
 - **Goals** -- track progress toward savings goals and the monthly
   contribution needed to hit a target date.
+- **Profile** -- your name, age, photo, and a short bio. Personalizes the
+  sidebar today; see "Profile & the community idea" below for why it exists.
+
+## Profile & the community idea
+
+The Profile page stores a name, age, photo, and bio -- purely local, like
+everything except the AI features. It exists today just to personalize the
+app (your name and photo show up in the sidebar).
+
+The reason it's shaped like a profile rather than a settings field: the
+longer-term idea is a community layer where people who take their finances
+seriously could find and meet each other, using a profile like this one
+plus a privacy-controlled summary of financial health (like the Dashboard's
+on-track gauge) rather than raw numbers. That doesn't exist yet -- there's
+no server, no other users, no discovery, and nothing is shared or
+published. The Profile page says so explicitly and has a disabled
+"discoverable" checkbox as a visible placeholder for that possible future,
+not a working toggle. Building the real thing would mean real infrastructure
+(accounts, a backend, moderation, consent flows) that's a deliberately
+separate decision from storing a profile locally today.
 
 ## Importing statements
 

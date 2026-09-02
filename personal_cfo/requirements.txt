@@ -4,3 +4,4 @@ plotly>=5.20
 pdfplumber>=0.11
 openpyxl>=3.1
 anthropic>=0.68
+Pillow>=10.0
