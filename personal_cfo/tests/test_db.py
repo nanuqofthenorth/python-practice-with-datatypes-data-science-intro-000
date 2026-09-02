@@ -30,6 +30,34 @@ def test_cross_tenant_isolation(db, tenant):
     assert accounts_a.iloc[0]["balance"] == 1000
 
 
+def test_update_account_edits_name_category_balance_and_rate(db, tenant):
+    tenant.as_("local")
+    db.add_account("Old Name", "liability", "Credit Card", 500, 19.99)
+    account_id = int(db.list_accounts().iloc[0]["id"])
+
+    db.update_account(account_id, "New Name", "Auto Loan", 750, 6.5)
+
+    updated = db.list_accounts().iloc[0]
+    assert updated["name"] == "New Name"
+    assert updated["category"] == "Auto Loan"
+    assert updated["balance"] == 750
+    assert updated["interest_rate"] == 6.5
+
+
+def test_update_account_cannot_touch_another_tenants_account(db, tenant):
+    tenant.as_("google:AAA")
+    db.add_account("A's Checking", "asset", "Cash", 1000)
+    account_id = int(db.list_accounts().iloc[0]["id"])
+
+    tenant.as_("google:BBB")
+    db.update_account(account_id, "Hijacked", "Cash", 0, 0)
+
+    tenant.as_("google:AAA")
+    unchanged = db.list_accounts().iloc[0]
+    assert unchanged["name"] == "A's Checking"
+    assert unchanged["balance"] == 1000
+
+
 def test_has_any_data_is_tenant_scoped(db, tenant):
     tenant.as_("google:AAA")
     db.add_account("Checking", "asset", "Cash", 500)

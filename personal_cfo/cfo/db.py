@@ -267,6 +267,21 @@ def update_account_balance(account_id: int, balance: float) -> None:
         )
 
 
+def update_account(account_id: int, name: str, category: str, balance: float, interest_rate: float = 0.0) -> None:
+    """Full edit of an existing account -- name, category, balance, and
+    interest rate all at once. Kind (asset/liability) is deliberately not
+    editable here: it determines which category list and which tab the
+    account lives in, and changing it would mean re-validating category
+    against the other kind's list -- simpler to delete and re-add if an
+    account was categorized as the wrong kind entirely."""
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE accounts SET name = ?, category = ?, balance = ?, interest_rate = ?, updated_at = ? "
+            "WHERE id = ? AND user_id = ?",
+            (name, category, balance, interest_rate, date.today().isoformat(), account_id, current_user_id()),
+        )
+
+
 def delete_account(account_id: int) -> None:
     with get_conn() as conn:
         conn.execute("DELETE FROM accounts WHERE id = ? AND user_id = ?", (account_id, current_user_id()))

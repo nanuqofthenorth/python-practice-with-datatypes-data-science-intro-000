@@ -41,16 +41,38 @@ for tab, kind, categories in (
         if subset.empty:
             st.caption("No accounts yet.")
         else:
+            header = st.columns([2, 1.4, 1.4, 1.1, 0.7])
+            header[0].caption("Name")
+            header[1].caption("Category")
+            header[2].caption("Balance")
+            if kind == "liability":
+                header[3].caption("APR %")
             for _, row in subset.iterrows():
-                cols = st.columns([2.5, 1.5, 1.5, 1, 0.7])
-                cols[0].markdown(f"**{row['name']}**  \n:gray[{row['category']}]")
-                new_balance = cols[1].number_input(
+                cols = st.columns([2, 1.4, 1.4, 1.1, 0.7])
+                new_name = cols[0].text_input(
+                    "Name", value=row["name"], key=f"name_{row['id']}", label_visibility="collapsed"
+                )
+                new_category = cols[1].selectbox(
+                    "Category", categories,
+                    index=categories.index(row["category"]) if row["category"] in categories else 0,
+                    key=f"cat_{row['id']}", label_visibility="collapsed",
+                )
+                new_balance = cols[2].number_input(
                     "Balance", value=float(row["balance"]), key=f"bal_{row['id']}", label_visibility="collapsed"
                 )
-                if row["interest_rate"]:
-                    cols[2].markdown(f"APR: {row['interest_rate']:.2f}%")
-                if new_balance != row["balance"]:
-                    db.update_account_balance(int(row["id"]), new_balance)
+                if kind == "liability":
+                    new_rate = cols[3].number_input(
+                        "APR %", value=float(row["interest_rate"]), step=0.1, min_value=0.0,
+                        key=f"rate_{row['id']}", label_visibility="collapsed",
+                    )
+                else:
+                    new_rate = float(row["interest_rate"])
+                edited_name = new_name.strip() or row["name"]
+                if (
+                    edited_name != row["name"] or new_category != row["category"]
+                    or new_balance != row["balance"] or new_rate != row["interest_rate"]
+                ):
+                    db.update_account(int(row["id"]), edited_name, new_category, new_balance, new_rate)
                     st.rerun()
                 if cols[4].button("Delete", key=f"del_{row['id']}"):
                     db.delete_account(int(row["id"]))
