@@ -14,6 +14,14 @@ st.caption("Backups, restore, and how to lock this app down.")
 if st.session_state.pop("_restore_flash", False):
     st.success("Restored.")
 
+st.subheader("Appearance")
+st.caption(
+    "Light, Dark, and System (follow your OS) are built into Streamlit itself -- open the **⋮** menu "
+    "at the top right of any page and pick one under the theme icons. Every chart in this app (the "
+    "gauge, trend lines, bar charts) switches its own colors to match, not just the page chrome."
+)
+
+st.divider()
 st.subheader("Backup")
 st.caption(
     "Downloads everything -- accounts, transactions, budgets, debts, goals, and your profile "

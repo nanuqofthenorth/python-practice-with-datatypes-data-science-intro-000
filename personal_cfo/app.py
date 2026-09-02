@@ -5,8 +5,8 @@ from cfo import calculations as calc
 from cfo import charts
 from cfo import db
 from cfo.ui import (
-    ACTIONABLE_LEVELS, bulk_calendar_download_button, get_api_key, is_ai_configured, render_action_items,
-    setup_page, stat_tile,
+    ACTIONABLE_LEVELS, bulk_calendar_download_button, get_api_key, is_ai_configured, is_dark_theme,
+    render_action_items, setup_page, stat_tile,
 )
 
 
@@ -15,6 +15,7 @@ def _cached_briefing(snapshot: str, nonce: int, _api_key: str) -> list[dict]:
     return advisor.generate_briefing(_api_key, snapshot)
 
 setup_page("Dashboard")
+dark = is_dark_theme()
 
 st.title("Dashboard")
 st.caption("A snapshot of where your money stands today.")
@@ -50,7 +51,7 @@ st.subheader("Are you on track?")
 health = calc.calculate_health_score(net_worth, cash_flow, budget_df, debts, goals, accounts)
 gauge_col, breakdown_col = st.columns([1, 1.4])
 with gauge_col:
-    st.plotly_chart(charts.health_gauge_chart(health.score), use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(charts.health_gauge_chart(health.score, dark=dark), use_container_width=True, config={"displayModeBar": False})
     if health.score is not None:
         st.markdown(f"<div style='text-align:center;font-weight:600;margin-top:-1rem;'>{health.label}</div>", unsafe_allow_html=True)
 with breakdown_col:
@@ -93,15 +94,15 @@ st.divider()
 left, right = st.columns([1.3, 1])
 with left:
     st.subheader("Net worth trend")
-    st.plotly_chart(charts.net_worth_trend_chart(snapshots), use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(charts.net_worth_trend_chart(snapshots, dark=dark), use_container_width=True, config={"displayModeBar": False})
 
     st.subheader("Income vs. expenses")
-    st.plotly_chart(charts.income_vs_expenses_chart(cash_flow), use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(charts.income_vs_expenses_chart(cash_flow, dark=dark), use_container_width=True, config={"displayModeBar": False})
 
 with right:
     st.subheader("Spending by category")
     spending = calc.spending_by_category(transactions, month=calc.current_month_key())
-    st.plotly_chart(charts.spending_by_category_chart(spending), use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(charts.spending_by_category_chart(spending, dark=dark), use_container_width=True, config={"displayModeBar": False})
 
 st.divider()
 st.subheader("Insights")

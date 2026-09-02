@@ -18,6 +18,13 @@ On first run, click **Load sample data** in the sidebar to explore the app
 with realistic example data, or start adding your own accounts and
 transactions right away.
 
+**Dark mode:** open the **⋮** menu at the top right of any page and pick
+Light, Dark, or System under the theme icons -- that's Streamlit's own
+built-in switcher, no setup needed. Every chart in the app (the health
+gauge, trend lines, bar charts) is theme-aware and switches its own colors
+to match; they don't just inherit the page background, since Plotly
+figures are static images sent to the browser rather than themed CSS.
+
 ## What's inside
 
 - **Dashboard** -- a financial health gauge ("are you on track?"), net worth

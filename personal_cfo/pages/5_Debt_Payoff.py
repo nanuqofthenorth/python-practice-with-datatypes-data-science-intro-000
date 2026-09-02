@@ -6,9 +6,10 @@ from cfo import calculations as calc
 from cfo import calendar_export as cal
 from cfo import charts
 from cfo import db
-from cfo.ui import setup_page, stat_tile
+from cfo.ui import is_dark_theme, setup_page, stat_tile
 
 setup_page("Debt Payoff")
+dark = is_dark_theme()
 
 st.title("Debt Payoff")
 st.caption("Compare payoff strategies and see how extra payments shorten your timeline.")
@@ -48,7 +49,7 @@ else:
     with r2:
         stat_tile("Total Interest Paid", f"${result.total_interest_paid:,.0f}")
 
-    st.plotly_chart(charts.debt_payoff_chart(result.schedule), use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(charts.debt_payoff_chart(result.schedule, dark=dark), use_container_width=True, config={"displayModeBar": False})
 
     st.caption(
         "Payoff order: " + " -> ".join(

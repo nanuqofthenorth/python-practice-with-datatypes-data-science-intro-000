@@ -16,6 +16,19 @@ APP_TITLE = "Personal CFO"
 _SESSION_KEY = "anthropic_api_key"
 
 
+def is_dark_theme() -> bool:
+    """Whether the viewer currently has dark mode active -- Streamlit's own
+    Light/Dark/System picker lives in its built-in menu (top right) with no
+    app code needed for the UI chrome itself. Plotly figures don't follow
+    that automatically, though (they're static JSON, not themed CSS), so
+    every chart builder in cfo.charts takes the result of this as a `dark`
+    argument."""
+    try:
+        return st.context.theme.type == "dark"
+    except Exception:  # noqa: BLE001 -- theme context can be unavailable early in a run
+        return False
+
+
 def setup_page(page_title: str) -> None:
     st.set_page_config(page_title=f"{page_title} - {APP_TITLE}", layout="wide")
     auth.check_authentication()

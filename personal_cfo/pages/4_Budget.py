@@ -4,9 +4,10 @@ import streamlit as st
 from cfo import calculations as calc
 from cfo import charts
 from cfo import db
-from cfo.ui import setup_page
+from cfo.ui import is_dark_theme, setup_page
 
 setup_page("Budget")
+dark = is_dark_theme()
 
 st.title("Budget")
 st.caption("Set a monthly target per category and see how you're tracking.")
@@ -17,7 +18,7 @@ month = calc.current_month_key()
 budget_df = calc.budget_vs_actual(budgets, transactions, month=month)
 
 st.subheader(f"Budget vs. actual -- {month}")
-st.plotly_chart(charts.budget_vs_actual_chart(budget_df), use_container_width=True, config={"displayModeBar": False})
+st.plotly_chart(charts.budget_vs_actual_chart(budget_df, dark=dark), use_container_width=True, config={"displayModeBar": False})
 
 if not budget_df.empty:
     display = budget_df.copy()
