@@ -51,10 +51,22 @@ transactions right away.
 
 ## Profile & the community idea
 
-The Profile page stores a name, age, photo, bio, and optional links
-(LinkedIn, Instagram, Facebook, a website) -- purely local, like everything
-except the AI features. It exists today just to personalize the app (your
-name and photo show up in the sidebar) and to make those links clickable.
+The Profile page stores a name, age, filing status, photo, bio, and
+optional links (LinkedIn, Instagram, Facebook, a website) -- purely local,
+like everything except the AI features. It exists today just to
+personalize the app (your name and photo show up in the sidebar) and to
+make those links clickable.
+
+Filing status uses the actual IRS categories (Single, Married Filing
+Jointly, Married Filing Separately, Head of Household, Qualifying
+Surviving Spouse) rather than a plain single/married toggle, since
+jointly vs. separately is the distinction with real tax consequences. It's
+stored but not used anywhere yet -- the health score and AI Advisor don't
+factor it in. Turning it into actual tax-aware guidance (bracket-aware
+suggestions, standard-vs-itemized tradeoffs) is a reasonable next step but
+a deliberately separate one, since it means committing to a tax year and a
+scope (federal only vs. state too) for guidance that should be right
+rather than approximately right.
 
 The social fields are plain links, not a sync: paste a handle or URL and
 it renders as a button, nothing more. No photo, bio, or verification is

@@ -16,9 +16,10 @@ if st.session_state.pop("_profile_saved_flash", False):
 
 st.info(
     "This stays on your machine like everything else in this app, with one exception: the AI Advisor "
-    "sends your *financial* snapshot to Anthropic's API when you use it, but never this profile. "
-    "Nothing here is shared, published, or visible to anyone else -- there's no other side to share it "
-    "with yet. See \"What this is for\" below."
+    "sends your *financial* snapshot to Anthropic's API when you use it, but never this profile -- your "
+    "name, age, filing status, bio, and links never leave this machine. Nothing here is shared, "
+    "published, or visible to anyone else -- there's no other side to share it with yet. See \"What this "
+    "is for\" below."
 )
 
 profile = db.get_profile() or {}
@@ -91,6 +92,12 @@ with right:
             "Age", min_value=0, max_value=120, value=int(profile.get("age") or 0),
             help="0 = prefer not to say",
         )
+        filing_status = st.selectbox(
+            "Filing status", db.FILING_STATUSES,
+            index=db.FILING_STATUSES.index(profile["filing_status"]) if profile.get("filing_status") in db.FILING_STATUSES else 0,
+            help="IRS filing status, not just single/married -- filing jointly vs. separately has different "
+                 "tax implications. Stored locally only; see the note below about what (doesn't) use this yet.",
+        )
         bio = st.text_area(
             "Bio", value=profile.get("bio", ""), max_chars=500, height=140,
             help="A few sentences about you and your financial goals.",
@@ -116,7 +123,10 @@ with right:
             key: _normalize_link(link_inputs[key], base_url)
             for key, _, base_url, _ in SOCIAL_PLATFORMS
         }
-        db.save_profile(name.strip(), age or None, bio.strip(), photo_bytes, photo_mime, social_links)
+        db.save_profile(
+            name.strip(), age or None, bio.strip(), photo_bytes, photo_mime, social_links,
+            filing_status if filing_status != "Prefer not to say" else None,
+        )
         st.session_state["_profile_saved_flash"] = True
         st.rerun()
 
@@ -131,6 +141,12 @@ st.markdown(
     "restricted for third-party apps, and Meta requires app review for Instagram/Facebook access -- plus "
     "somewhere to securely hold the resulting tokens. That's real infrastructure this self-hosted, "
     "no-accounts app doesn't have, and a bigger, separate decision from adding a link field.\n\n"
+    "Filing status is stored but not used anywhere yet -- the Dashboard's health score and the AI Advisor "
+    "don't factor it in. Wiring it into real tax-aware guidance (bracket-aware suggestions, standard vs. "
+    "itemized deduction tradeoffs) is a reasonable next step, but a deliberately separate one: it means "
+    "deciding things like which tax year's brackets to use and whether to model state taxes too, and it's "
+    "the kind of guidance that should be right rather than approximately right. It's here now so it "
+    "doesn't need to be added later as a breaking change.\n\n"
     "The longer-term idea behind the page as a whole is a community layer: a way for people who take "
     "their finances seriously to find and meet each other, using a profile like this one plus a "
     "privacy-controlled summary of financial health (like the on-track gauge on the Dashboard) instead "

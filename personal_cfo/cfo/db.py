@@ -86,9 +86,22 @@ CREATE TABLE IF NOT EXISTS profile (
     instagram_url TEXT,
     facebook_url TEXT,
     website_url TEXT,
+    filing_status TEXT,
     updated_at TEXT NOT NULL
 );
 """
+
+# IRS filing status categories, not a blunt single/married binary --
+# married-filing-jointly vs -separately has real, different tax
+# implications, which is the whole reason this field exists.
+FILING_STATUSES = [
+    "Prefer not to say",
+    "Single",
+    "Married Filing Jointly",
+    "Married Filing Separately",
+    "Head of Household",
+    "Qualifying Surviving Spouse",
+]
 
 # Columns added after the initial release. CREATE TABLE IF NOT EXISTS is a
 # no-op against a table that already exists, so an existing local database
@@ -100,6 +113,7 @@ _PROFILE_COLUMN_MIGRATIONS = {
     "instagram_url": "TEXT",
     "facebook_url": "TEXT",
     "website_url": "TEXT",
+    "filing_status": "TEXT",
 }
 
 
@@ -291,7 +305,7 @@ def get_profile() -> dict | None:
     with get_conn() as conn:
         row = conn.execute(
             "SELECT name, age, bio, photo, photo_mime, "
-            "linkedin_url, instagram_url, facebook_url, website_url, updated_at "
+            "linkedin_url, instagram_url, facebook_url, website_url, filing_status, updated_at "
             "FROM profile WHERE id = 1"
         ).fetchone()
     if row is None:
@@ -301,32 +315,33 @@ def get_profile() -> dict | None:
         "photo": row[3], "photo_mime": row[4],
         "linkedin_url": row[5], "instagram_url": row[6],
         "facebook_url": row[7], "website_url": row[8],
-        "updated_at": row[9],
+        "filing_status": row[9], "updated_at": row[10],
     }
 
 
 def save_profile(
     name: str, age: int | None, bio: str, photo: bytes | None, photo_mime: str | None,
-    social_links: dict[str, str] | None = None,
+    social_links: dict[str, str] | None = None, filing_status: str | None = None,
 ) -> None:
     social_links = social_links or {}
     with get_conn() as conn:
         conn.execute(
             "INSERT INTO profile (id, name, age, bio, photo, photo_mime, "
-            "linkedin_url, instagram_url, facebook_url, website_url, updated_at) "
-            "VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "linkedin_url, instagram_url, facebook_url, website_url, filing_status, updated_at) "
+            "VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(id) DO UPDATE SET "
             "name = excluded.name, age = excluded.age, bio = excluded.bio, "
             "photo = excluded.photo, photo_mime = excluded.photo_mime, "
             "linkedin_url = excluded.linkedin_url, instagram_url = excluded.instagram_url, "
             "facebook_url = excluded.facebook_url, website_url = excluded.website_url, "
-            "updated_at = excluded.updated_at",
+            "filing_status = excluded.filing_status, updated_at = excluded.updated_at",
             (
                 name, age, bio, photo, photo_mime,
                 social_links.get("linkedin_url") or None,
                 social_links.get("instagram_url") or None,
                 social_links.get("facebook_url") or None,
                 social_links.get("website_url") or None,
+                filing_status or None,
                 date.today().isoformat(),
             ),
         )
