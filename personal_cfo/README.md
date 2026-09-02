@@ -51,9 +51,20 @@ transactions right away.
 
 ## Profile & the community idea
 
-The Profile page stores a name, age, photo, and bio -- purely local, like
-everything except the AI features. It exists today just to personalize the
-app (your name and photo show up in the sidebar).
+The Profile page stores a name, age, photo, bio, and optional links
+(LinkedIn, Instagram, Facebook, a website) -- purely local, like everything
+except the AI features. It exists today just to personalize the app (your
+name and photo show up in the sidebar) and to make those links clickable.
+
+The social fields are plain links, not a sync: paste a handle or URL and
+it renders as a button, nothing more. No photo, bio, or verification is
+pulled in from LinkedIn/Instagram/Facebook automatically -- that would
+need an OAuth app registered with each platform (LinkedIn's API is tightly
+restricted for third parties; Meta requires app review for Instagram/
+Facebook access) plus somewhere to securely hold the resulting tokens,
+which is real infrastructure this self-hosted, no-accounts app doesn't
+have. Worth building later if there's a real reason to verify identity or
+pull in a live photo, but it's a separate decision from a link field.
 
 The reason it's shaped like a profile rather than a settings field: the
 longer-term idea is a community layer where people who take their finances

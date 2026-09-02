@@ -82,9 +82,25 @@ CREATE TABLE IF NOT EXISTS profile (
     bio TEXT NOT NULL DEFAULT '',
     photo BLOB,
     photo_mime TEXT,
+    linkedin_url TEXT,
+    instagram_url TEXT,
+    facebook_url TEXT,
+    website_url TEXT,
     updated_at TEXT NOT NULL
 );
 """
+
+# Columns added after the initial release. CREATE TABLE IF NOT EXISTS is a
+# no-op against a table that already exists, so an existing local database
+# needs these added explicitly -- ALTER TABLE ADD COLUMN, skipped if the
+# column is already there. Append future additions to this dict rather than
+# writing a new migration mechanism.
+_PROFILE_COLUMN_MIGRATIONS = {
+    "linkedin_url": "TEXT",
+    "instagram_url": "TEXT",
+    "facebook_url": "TEXT",
+    "website_url": "TEXT",
+}
 
 
 @contextmanager
@@ -102,6 +118,10 @@ def get_conn():
 def init_db() -> None:
     with get_conn() as conn:
         conn.executescript(SCHEMA)
+        existing_columns = {row[1] for row in conn.execute("PRAGMA table_info(profile)")}
+        for column, col_type in _PROFILE_COLUMN_MIGRATIONS.items():
+            if column not in existing_columns:
+                conn.execute(f"ALTER TABLE profile ADD COLUMN {column} {col_type}")
 
 
 def _read(query: str, params: tuple = ()) -> pd.DataFrame:
@@ -264,28 +284,51 @@ def delete_goal(goal_id: int) -> None:
 
 
 # ------------------------------------------------------------------ profile
+PROFILE_SOCIAL_FIELDS = ["linkedin_url", "instagram_url", "facebook_url", "website_url"]
+
+
 def get_profile() -> dict | None:
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT name, age, bio, photo, photo_mime, updated_at FROM profile WHERE id = 1"
+            "SELECT name, age, bio, photo, photo_mime, "
+            "linkedin_url, instagram_url, facebook_url, website_url, updated_at "
+            "FROM profile WHERE id = 1"
         ).fetchone()
     if row is None:
         return None
     return {
         "name": row[0], "age": row[1], "bio": row[2],
-        "photo": row[3], "photo_mime": row[4], "updated_at": row[5],
+        "photo": row[3], "photo_mime": row[4],
+        "linkedin_url": row[5], "instagram_url": row[6],
+        "facebook_url": row[7], "website_url": row[8],
+        "updated_at": row[9],
     }
 
 
-def save_profile(name: str, age: int | None, bio: str, photo: bytes | None, photo_mime: str | None) -> None:
+def save_profile(
+    name: str, age: int | None, bio: str, photo: bytes | None, photo_mime: str | None,
+    social_links: dict[str, str] | None = None,
+) -> None:
+    social_links = social_links or {}
     with get_conn() as conn:
         conn.execute(
-            "INSERT INTO profile (id, name, age, bio, photo, photo_mime, updated_at) "
-            "VALUES (1, ?, ?, ?, ?, ?, ?) "
+            "INSERT INTO profile (id, name, age, bio, photo, photo_mime, "
+            "linkedin_url, instagram_url, facebook_url, website_url, updated_at) "
+            "VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(id) DO UPDATE SET "
             "name = excluded.name, age = excluded.age, bio = excluded.bio, "
-            "photo = excluded.photo, photo_mime = excluded.photo_mime, updated_at = excluded.updated_at",
-            (name, age, bio, photo, photo_mime, date.today().isoformat()),
+            "photo = excluded.photo, photo_mime = excluded.photo_mime, "
+            "linkedin_url = excluded.linkedin_url, instagram_url = excluded.instagram_url, "
+            "facebook_url = excluded.facebook_url, website_url = excluded.website_url, "
+            "updated_at = excluded.updated_at",
+            (
+                name, age, bio, photo, photo_mime,
+                social_links.get("linkedin_url") or None,
+                social_links.get("instagram_url") or None,
+                social_links.get("facebook_url") or None,
+                social_links.get("website_url") or None,
+                date.today().isoformat(),
+            ),
         )
 
 
