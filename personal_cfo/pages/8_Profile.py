@@ -4,7 +4,8 @@ import streamlit as st
 from PIL import Image
 
 from cfo import db
-from cfo.ui import setup_page
+from cfo import tax
+from cfo.ui import escape_markdown_dollars, setup_page
 
 setup_page("Profile")
 
@@ -15,11 +16,12 @@ if st.session_state.pop("_profile_saved_flash", False):
     st.success("Profile saved.")
 
 st.info(
-    "This stays on your machine like everything else in this app, with one exception: the AI Advisor "
-    "sends your *financial* snapshot to Anthropic's API when you use it, but never this profile -- your "
-    "name, age, filing status, bio, and links never leave this machine. Nothing here is shared, "
-    "published, or visible to anyone else -- there's no other side to share it with yet. See \"What this "
-    "is for\" below."
+    "This stays on your machine like everything else in this app, with two exceptions: the AI Advisor "
+    "sends your *financial* snapshot to Anthropic's API when you use it, and that snapshot now includes "
+    "your **filing status** (so it can give bracket-aware answers) and the federal tax estimate below, "
+    "if you've set one. Your name, age, photo, bio, and links are never included -- those stay local no "
+    "matter what. Nothing here is shared, published, or visible to anyone else -- there's no other side "
+    "to share it with yet. See \"What this is for\" below."
 )
 
 profile = db.get_profile() or {}
@@ -130,6 +132,35 @@ with right:
         st.session_state["_profile_saved_flash"] = True
         st.rerun()
 
+current_filing_status = profile.get("filing_status")
+if current_filing_status:
+    st.divider()
+    st.subheader("Federal tax estimate")
+    annual_income = tax.estimate_annual_income(db.list_transactions())
+    estimate = tax.estimate_federal_tax(annual_income, current_filing_status) if annual_income else None
+    if estimate is None:
+        st.caption(
+            "Not enough income logged yet to estimate this -- add income transactions "
+            "(Transactions page, or import a statement) and it'll appear here."
+        )
+    else:
+        st.warning(
+            f"**Illustrative federal estimate only, tax year {tax.TAX_YEAR} ({tax.TAX_YEAR_SOURCE})** -- "
+            "not tax advice. Federal income tax only (no state, local, or payroll tax), standard "
+            "deduction only (no credits, itemizing, AMT, or capital-gains rates), and based on the "
+            "average income logged in this app over the last year, annualized -- not your actual return. "
+            "Verify against [irs.gov](https://www.irs.gov) or a tax professional before acting on this."
+        )
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Estimated annual income", f"${estimate.annual_income:,.0f}")
+        c2.metric("Marginal federal bracket", f"{estimate.marginal_rate:.0%}")
+        c3.metric("Effective federal rate", f"{estimate.effective_rate:.1%}")
+        st.caption(escape_markdown_dollars(
+            f"Standard deduction (${estimate.standard_deduction:,.0f}) applied -> "
+            f"${estimate.taxable_income:,.0f} estimated taxable income -> "
+            f"~${estimate.estimated_tax:,.0f} estimated federal tax."
+        ))
+
 st.divider()
 st.subheader("What this is for")
 st.markdown(
@@ -141,12 +172,13 @@ st.markdown(
     "restricted for third-party apps, and Meta requires app review for Instagram/Facebook access -- plus "
     "somewhere to securely hold the resulting tokens. That's real infrastructure this self-hosted, "
     "no-accounts app doesn't have, and a bigger, separate decision from adding a link field.\n\n"
-    "Filing status is stored but not used anywhere yet -- the Dashboard's health score and the AI Advisor "
-    "don't factor it in. Wiring it into real tax-aware guidance (bracket-aware suggestions, standard vs. "
-    "itemized deduction tradeoffs) is a reasonable next step, but a deliberately separate one: it means "
-    "deciding things like which tax year's brackets to use and whether to model state taxes too, and it's "
-    "the kind of guidance that should be right rather than approximately right. It's here now so it "
-    "doesn't need to be added later as a breaking change.\n\n"
+    "Filing status now drives a federal tax estimate (above, once you've set a filing status and logged "
+    "some income) and is included in what the AI Advisor knows about you. It's deliberately narrow: "
+    "federal only, standard deduction only, one specific tax year's brackets hand-entered into the code "
+    "(see cfo/tax.py) rather than fetched live -- no state taxes, no itemizing, no credits, no AMT. The "
+    "Dashboard's health score still doesn't factor it in. Real, comprehensive tax guidance (state taxes, "
+    "itemized-vs-standard tradeoffs, credits, multi-year planning) is a much bigger, separate project; "
+    "this is an estimate, not a replacement for a tax professional.\n\n"
     "The longer-term idea behind the page as a whole is a community layer: a way for people who take "
     "their finances seriously to find and meet each other, using a profile like this one plus a "
     "privacy-controlled summary of financial health (like the on-track gauge on the Dashboard) instead "

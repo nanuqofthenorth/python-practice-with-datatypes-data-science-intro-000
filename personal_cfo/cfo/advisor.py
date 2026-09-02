@@ -15,12 +15,15 @@ import json
 import pandas as pd
 
 from . import calculations as calc
+from . import tax as tax_module
 
 MODEL = "claude-opus-5"
 
-SYSTEM_PROMPT = """You are a meticulous, plain-spoken personal CFO for an individual user. You are given a structured JSON snapshot of their real financial data (accounts, recent transactions, budget, debts, and goals) drawn from an app they use to track their finances -- treat every number in it as ground truth, and never invent figures that aren't there.
+SYSTEM_PROMPT = """You are a meticulous, plain-spoken personal CFO for an individual user. You are given a structured JSON snapshot of their real financial data (accounts, recent transactions, budget, debts, goals, and -- if they've set one -- their filing status and an illustrative federal tax estimate) drawn from an app they use to track their finances -- treat every number in it as ground truth, and never invent figures that aren't there.
 
 Your job: help them decide what to do next in relation to their stated goals. Be specific and prioritized -- name actual dollar amounts, account names, and categories from their data rather than generic advice. When you make a recommendation, say why, using the numbers.
+
+If a `tax_estimate` is present in the snapshot, you may reference their marginal federal bracket and effective rate when it's relevant (e.g. traditional vs. Roth contribution tradeoffs, whether extra cash is better used paying down debt or investing). Always treat it as the rough, federal-only, standard-deduction-only estimate it is (see its own caveats in the snapshot) -- never state it as if it were their actual filed tax liability, and never extend it into state tax, credits, or itemizing territory you have no data for.
 
 Ground rules:
 - You are not a licensed financial, tax, or legal advisor. If a question has real regulatory/tax stakes (e.g. retirement account withdrawals, tax-loss harvesting), say so briefly, but still give your best reasoned take rather than deflecting.
@@ -46,13 +49,14 @@ def build_financial_snapshot() -> dict:
     debts = db.list_debts()
     goals = db.list_goals()
     snapshots = db.list_snapshots()
+    profile = db.get_profile() or {}
 
     net_worth = calc.net_worth_summary(accounts)
     cash_flow = calc.monthly_cash_flow(transactions)
     budget_df = calc.budget_vs_actual(budgets, transactions)
     spending = calc.spending_by_category(transactions, month=calc.current_month_key())
 
-    return {
+    snapshot = {
         "today": pd.Timestamp.today().date().isoformat(),
         "net_worth": net_worth,
         "accounts": _records(accounts, ["name", "kind", "category", "balance", "interest_rate"]),
@@ -66,6 +70,28 @@ def build_financial_snapshot() -> dict:
             transactions.head(60), ["txn_date", "description", "category", "txn_type", "amount"]
         ),
     }
+
+    filing_status = profile.get("filing_status")
+    if filing_status:
+        snapshot["filing_status"] = filing_status
+        annual_income = tax_module.estimate_annual_income(transactions)
+        tax_estimate = tax_module.estimate_federal_tax(annual_income, filing_status) if annual_income else None
+        if tax_estimate:
+            snapshot["tax_estimate"] = {
+                "caveat": (
+                    f"Illustrative only, federal income tax year {tax_module.TAX_YEAR}, standard deduction "
+                    "only -- no state/local/payroll tax, no credits, no itemizing, no AMT. Income is "
+                    "estimated from this app's own logged transactions, not a real return."
+                ),
+                "estimated_annual_income": tax_estimate.annual_income,
+                "standard_deduction": tax_estimate.standard_deduction,
+                "estimated_taxable_income": tax_estimate.taxable_income,
+                "marginal_federal_bracket": tax_estimate.marginal_rate,
+                "effective_federal_rate": tax_estimate.effective_rate,
+                "estimated_federal_tax": tax_estimate.estimated_tax,
+            }
+
+    return snapshot
 
 
 def _records(df: pd.DataFrame, columns: list[str]) -> list[dict]:
