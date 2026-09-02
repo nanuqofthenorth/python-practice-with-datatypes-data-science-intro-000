@@ -134,6 +134,13 @@ else:
         "6. Restart the app."
     )
     st.caption(
+        "Running this on a real host instead of localhost (see README \"Hosting it for other people\")? "
+        "Skip secrets.toml entirely and set APP_BASE_URL, GOOGLE_OAUTH_CLIENT_ID, "
+        "GOOGLE_OAUTH_CLIENT_SECRET, and GOOGLE_OAUTH_COOKIE_SECRET as environment variables instead -- "
+        "the app's Docker entrypoint writes the file for you from those on startup, and your redirect "
+        "URI should point at your real domain, not localhost."
+    )
+    st.caption(
         "secrets.toml is gitignored -- it holds a real client secret, treat it like a password. If both "
         "this and PERSONAL_CFO_PASSWORD are configured, either one unlocks the app."
     )

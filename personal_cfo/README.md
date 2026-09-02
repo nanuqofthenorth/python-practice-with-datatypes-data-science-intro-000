@@ -25,6 +25,62 @@ gauge, trend lines, bar charts) is theme-aware and switches its own colors
 to match; they don't just inherit the page background, since Plotly
 figures are static images sent to the browser rather than themed CSS.
 
+## Hosting it for other people
+
+Running it on your own machine (above) is all that's needed to use it
+yourself. To actually share a URL with friends or family -- and as a
+prerequisite for Google Sign-In, whose redirect URI has to be a real
+domain, not `localhost` -- it needs a real host with **persistent
+storage**. That last part rules out some "easy" free options: Streamlit
+Community Cloud, for instance, doesn't guarantee its filesystem survives
+a restart or redeploy, which for this app means the database (everyone's
+financial data) can simply vanish.
+
+This repo includes a `Dockerfile` and a `render.yaml` blueprint for
+[Render](https://render.com), which does provide a persistent disk at a
+small monthly cost. The same `Dockerfile` works on any host that can run
+a container with a mounted volume (Fly.io, Railway, a VPS you run
+yourself) -- `render.yaml` is just the path of least setup.
+
+**Deploying to Render:**
+
+1. Push this repo to GitHub (already done if you're reading this from
+   the repo).
+2. On Render: **New +** -> **Blueprint**, point it at the repo. Render
+   reads `render.yaml` and creates the service, including a persistent
+   disk mounted exactly where `cfo/db.py` writes its database.
+3. Render will prompt for the environment variables listed in
+   `render.yaml` -- set `PERSONAL_CFO_PASSWORD` at minimum. The rest
+   (`ANTHROPIC_API_KEY`, the `GOOGLE_OAUTH_*` variables) are optional;
+   leave any of them blank to leave that feature off.
+4. Deploy. Render gives you a URL like `https://personal-cfo-xxxx.onrender.com`.
+
+**Google Sign-In on a real host** works differently than the localhost
+setup in "Backup, restore & locking it down" below: instead of a
+`secrets.toml` file (which isn't something you'd want baked into a
+container image anyway), set these environment variables and
+`docker-entrypoint.sh` writes the file for you on container start:
+
+- `APP_BASE_URL` -- your app's real URL, e.g. `https://personal-cfo-xxxx.onrender.com`
+- `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` -- from the same
+  Google Cloud Console OAuth client described below, except the
+  authorized redirect URI you register there should be
+  `<APP_BASE_URL>/oauth2callback` (your real domain, not `localhost`).
+- `GOOGLE_OAUTH_COOKIE_SECRET` -- generate with
+  `python3 -c "import secrets; print(secrets.token_hex(32))"`.
+
+Leave all four unset and the app runs exactly as it does locally, just
+reachable at a real URL -- password protection only, no Google Sign-In,
+one shared dataset for whoever has the password.
+
+**Sharing an API key across multiple people is a real cost/blast-radius
+decision, not just a config toggle.** Setting `ANTHROPIC_API_KEY` once
+for the hosted app means every signed-in tenant's Advisor questions and
+CFO Briefings draw on that one key and your billing, with no per-tenant
+spending limit or breakdown of who used how much. Fine for a handful of
+trusted friends and family; something to actually think about before
+handing the URL to more people than that.
+
 ## What's inside
 
 - **Dashboard** -- a financial health gauge ("are you on track?"), net worth
@@ -70,6 +126,20 @@ automatically -- it's a button, not a schedule -- so make a habit of it,
 especially before restoring or upgrading. If Google Sign-In is configured,
 this backup contains *only the signed-in account's own data* -- see
 "Multiple people, one running app" below.
+
+**Automated backups (hosted deployments only).** On top of the manual
+button above, the app opportunistically makes its own full-database
+backup -- every tenant, not just yours -- to `data/backups/` once it's
+been at least 24 hours since the last one, checked once per page load.
+This is a disaster-recovery safety net for whoever's running the server,
+not something any signed-in tenant can see or download; it only actually
+does anything useful once the app is hosted with persistent storage (see
+"Hosting" below) -- backups written to a container's local, non-persistent
+disk are lost the same way the live database would be. "Opportunistic"
+means exactly what it sounds like: it runs when someone happens to load a
+page, not on a guaranteed clock, so an app nobody opens for a week doesn't
+get backed up for a week. The last 14 are kept; older ones are deleted
+automatically.
 
 **Restore.** Also on Settings: upload a `.db` file and it's checked (SQLite
 integrity check, plus the expected tables) before you're allowed to

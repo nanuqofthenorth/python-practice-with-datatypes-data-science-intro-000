@@ -1,0 +1,48 @@
+# Render Blueprint for Personal CFO. Deploy: push this repo to GitHub,
+# then on Render pick "New +" -> "Blueprint" and point it at the repo --
+# Render reads this file and creates the service below automatically.
+#
+# The one thing that actually matters for a finance app: the persistent
+# disk. Without it, the SQLite database (everyone's accounts,
+# transactions, and profile) lives on container-local storage that's
+# wiped on every restart or redeploy. `disk:` below mounts a real,
+# durable volume at the exact path cfo/db.py writes to.
+#
+# Secrets (marked sync: false) are never stored in this file or the repo
+# -- Render prompts for them once in its dashboard when you create the
+# service from this blueprint.
+services:
+  - type: web
+    name: personal-cfo
+    runtime: docker
+    dockerfilePath: personal_cfo/Dockerfile
+    dockerContext: personal_cfo
+    plan: starter
+    healthCheckPath: /
+    disk:
+      name: personal-cfo-data
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      # A single shared password gating the whole app. Required unless
+      # you're setting up Google Sign-In below instead (or as well).
+      - key: PERSONAL_CFO_PASSWORD
+        sync: false
+      # Optional: enables the AI Advisor / CFO Briefing for every signed-in
+      # tenant, billed to this one key -- see the README's note on shared
+      # API key cost/blast-radius before turning this on for multiple people.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # Optional, all four together: enables "Sign in with Google" (the
+      # only thing in this app that gives each person their own private
+      # data instead of one shared dataset). See README "Google Sign-In
+      # on a real host" for how to get these values. Leave unset to skip
+      # Google Sign-In entirely.
+      - key: APP_BASE_URL
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_OAUTH_COOKIE_SECRET
+        sync: false
