@@ -2,6 +2,7 @@ from datetime import date
 
 import streamlit as st
 
+from cfo import calculations as calc
 from cfo import db
 from cfo.ui import setup_page
 
@@ -10,7 +11,7 @@ setup_page("Transactions")
 st.title("Transactions")
 st.caption("Income and expenses, categorized.")
 
-add_tab, list_tab = st.tabs(["Add manually", "All transactions"])
+add_tab, list_tab, recurring_tab = st.tabs(["Add manually", "All transactions", "Recurring & subscriptions"])
 
 with add_tab:
     with st.form("add_txn_form", clear_on_submit=True):
@@ -56,3 +57,27 @@ with list_tab:
         if delete_id and st.button("Delete selected"):
             db.delete_transaction(int(delete_id))
             st.rerun()
+
+with recurring_tab:
+    st.caption(
+        "Expenses that show up with the same description and a similar amount most months -- "
+        "subscriptions, rent, bills -- detected automatically from your transaction history. "
+        "Matching is by exact description text (not fuzzy): a description that changes slightly "
+        "month to month (e.g. a trailing reference number or date) won't be caught."
+    )
+    all_transactions = db.list_transactions()
+    recurring = calc.detect_recurring_transactions(all_transactions)
+    if recurring.empty:
+        st.caption(
+            "Nothing detected yet -- needs the same expense description and a similar amount in at "
+            "least 3 different months, without skipping more than one month in a row."
+        )
+    else:
+        monthly_total = recurring["amount"].sum()
+        st.metric("Estimated recurring spend", f"${monthly_total:,.0f}/month", help="Sum of the typical amount for each detected series.")
+        display = recurring.rename(columns={
+            "description": "Description", "category": "Category", "amount": "Typical amount",
+            "occurrences": "Months seen", "last_date": "Most recent",
+        })
+        display["Typical amount"] = display["Typical amount"].map(lambda v: f"${v:,.2f}")
+        st.dataframe(display, use_container_width=True, hide_index=True)

@@ -64,6 +64,72 @@ def spending_by_category(transactions: pd.DataFrame, month: str | None = None) -
     return out
 
 
+# ---------------------------------------------------- recurring / subscriptions
+def detect_recurring_transactions(
+    transactions: pd.DataFrame,
+    min_occurrences: int = 3,
+    amount_tolerance_pct: float = 0.15,
+) -> pd.DataFrame:
+    """Flag expense transactions that look like a recurring monthly
+    charge -- rent, a subscription, a bill -- so they're visible without
+    having to spot the pattern by eye across months of a transaction list.
+
+    A series counts as recurring if the same normalized description (case
+    and surrounding-whitespace insensitive; not fuzzy -- a description
+    that changes month to month, e.g. a trailing reference number or
+    date, won't be matched) shows up with a similar amount (within
+    amount_tolerance_pct of the median, to allow for tax or small price
+    changes) in at least min_occurrences distinct calendar months, with
+    no more than one month ever skipped in a row -- so two coincidentally
+    similar purchases eight months apart don't get flagged.
+
+    Returns one row per detected series: description, category, the
+    typical (median) amount, how many months it showed up in, and the
+    most recent date -- sorted by amount, largest first.
+    """
+    columns = ["description", "category", "amount", "occurrences", "last_date"]
+    if transactions.empty:
+        return pd.DataFrame(columns=columns)
+
+    df = transactions[transactions["txn_type"] == "expense"].copy()
+    if df.empty:
+        return pd.DataFrame(columns=columns)
+    df["txn_date"] = pd.to_datetime(df["txn_date"])
+    df["_norm_desc"] = df["description"].str.strip().str.lower()
+    df["_month"] = df["txn_date"].dt.to_period("M")
+
+    results = []
+    for _norm_desc, group in df.groupby("_norm_desc"):
+        median_amount = group["amount"].median()
+        tolerance = max(1.0, median_amount * amount_tolerance_pct)
+        close = group[(group["amount"] - median_amount).abs() <= tolerance].copy()
+        # At most one occurrence counted per calendar month -- keep the
+        # one closest to the group's typical amount if there's more than one.
+        close["_dist"] = (close["amount"] - median_amount).abs()
+        close = close.sort_values("_dist").drop_duplicates(subset="_month", keep="first")
+        close = close.sort_values("txn_date")
+        if len(close) < min_occurrences:
+            continue
+
+        months_sorted = close["_month"].sort_values().tolist()
+        month_gaps = [(months_sorted[i + 1] - months_sorted[i]).n for i in range(len(months_sorted) - 1)]
+        if month_gaps and max(month_gaps) > 2:
+            continue
+
+        results.append({
+            "description": close.iloc[-1]["description"],
+            "category": close.iloc[-1]["category"],
+            "amount": round(float(median_amount), 2),
+            "occurrences": len(close),
+            "last_date": close.iloc[-1]["txn_date"].date().isoformat(),
+        })
+
+    result_df = pd.DataFrame(results, columns=columns)
+    if not result_df.empty:
+        result_df = result_df.sort_values("amount", ascending=False).reset_index(drop=True)
+    return result_df
+
+
 # ------------------------------------------------------------------ budget
 def budget_vs_actual(budgets: pd.DataFrame, transactions: pd.DataFrame, month: str | None = None) -> pd.DataFrame:
     month = month or current_month_key()
