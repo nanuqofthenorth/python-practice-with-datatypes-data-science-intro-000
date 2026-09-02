@@ -21,8 +21,13 @@ transactions right away.
 ## What's inside
 
 - **Dashboard** -- net worth trend, income vs. expenses, spending by
-  category, and rule-based insights (savings rate, over-budget categories,
-  high-APR debt, goal pacing).
+  category, rule-based insights (savings rate, over-budget categories,
+  high-APR debt, goal pacing), and, if configured, a **CFO Briefing** --
+  a handful of proactive, AI-generated recommendations that appear without
+  being asked.
+- **Advisor** -- ask free-form questions ("should I pay down debt or keep
+  investing?", "am I on track for my goals?") and get answers grounded in
+  your actual accounts, transactions, budget, debts, and goals.
 - **Accounts** -- track asset and liability balances; take point-in-time net
   worth snapshots to build the trend line.
 - **Import Statements** -- upload a CSV/Excel export or PDF statement from a
@@ -58,13 +63,39 @@ extract itemized transactions from PDF tables, since those layouts vary too
 much to parse reliably. If you need line-item detail for a credit card,
 check whether the issuer also offers a CSV/Excel export.
 
+## AI Advisor & CFO Briefing
+
+The Advisor page and the Dashboard's CFO Briefing are powered by the
+[Claude API](https://www.anthropic.com/api) (Claude Opus 5) and are **off by
+default**. To turn them on, either:
+
+- set the `ANTHROPIC_API_KEY` environment variable before running
+  `streamlit run app.py`, or
+- paste a key into the **AI Advisor setup** panel in the sidebar (kept only
+  in that browser session's memory -- never written to disk).
+
+Every question you ask, and the periodic briefing, sends a JSON snapshot of
+your accounts, recent transactions, budget, debts, and goals to Anthropic's
+API so the model can reason over real numbers instead of guessing. The
+Advisor page has a "What data is sent to Claude" panel that shows you the
+exact payload. This uses your API key's own usage/billing -- each question
+and each briefing regeneration is a real API call.
+
+The CFO Briefing is cached per financial snapshot (not regenerated on every
+page load) and has its own Regenerate button, so it only calls the API when
+your data has actually changed or you ask it to.
+
 ## Data & privacy
 
-All data is stored locally in a SQLite file at `personal_cfo/data/cfo.db`.
-Nothing is sent anywhere -- this is a single-user, run-it-yourself app with
-no accounts, no server, and no external services.
+Everything except the AI Advisor and CFO Briefing is entirely local: all
+data lives in a SQLite file at `personal_cfo/data/cfo.db`, and nothing is
+sent anywhere. The AI features are the one exception, are opt-in (no API
+key, no calls), and only ever send the financial snapshot described above --
+never your API key to anywhere but Anthropic, and never any data to any
+third party beyond that.
 
 ## Tech
 
 Python, [Streamlit](https://streamlit.io) for the UI, SQLite for storage,
-[Plotly](https://plotly.com/python/) for charts.
+[Plotly](https://plotly.com/python/) for charts, the
+[Anthropic API](https://docs.anthropic.com) for the Advisor and Briefing.
