@@ -1,0 +1,33 @@
+name: Personal CFO tests
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "personal_cfo/**"
+      - ".github/workflows/personal-cfo-tests.yml"
+  pull_request:
+    paths:
+      - "personal_cfo/**"
+      - ".github/workflows/personal-cfo-tests.yml"
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: personal_cfo
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: personal_cfo/requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: python -m pytest tests/ -v
