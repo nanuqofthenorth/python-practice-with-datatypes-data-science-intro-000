@@ -31,6 +31,7 @@ def setup_page(page_title: str) -> None:
         st.divider()
         render_ai_settings()
         st.divider()
+        render_account_status()
 
 
 def render_profile_snippet() -> None:
@@ -44,6 +45,20 @@ def render_profile_snippet() -> None:
             st.image(profile["photo"], width=44)
     with cols[1]:
         st.markdown(f"**{profile['name']}**")
+
+
+def render_account_status() -> None:
+    """Only shown once some form of login is configured -- nothing to
+    report otherwise."""
+    if not auth.is_protected():
+        return
+    identity = auth.current_google_identity()
+    if identity:
+        st.caption(f"Signed in as {identity}")
+        if st.button("Log out", use_container_width=True):
+            st.logout()
+    elif auth.is_unlocked_by_password():
+        st.caption("Unlocked with password.")
 
 
 def get_api_key() -> str | None:

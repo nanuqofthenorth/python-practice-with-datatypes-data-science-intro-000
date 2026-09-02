@@ -1,3 +1,7 @@
 data/*.db
 __pycache__/
 *.pyc
+
+# Real OAuth credentials -- never commit this. .streamlit/secrets.toml.example
+# is the tracked template; this rule only excludes the real file.
+.streamlit/secrets.toml

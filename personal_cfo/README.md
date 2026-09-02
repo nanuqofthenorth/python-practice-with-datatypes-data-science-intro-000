@@ -68,18 +68,41 @@ confirm the overwrite. Restoring replaces *everything* currently in the
 app -- there's no merge and no undo beyond keeping your own backups.
 
 **Locking it down.** By default this app has no password and no login --
-fine for the intended use (you, on your own machine, at `localhost`). Two
-things exist for anyone who runs it somewhere reachable over a network:
+fine for the intended use (you, on your own machine, at `localhost`).
+Three things exist for anyone who runs it somewhere reachable over a
+network, or who just wants a lock screen:
 
 - Set the `PERSONAL_CFO_PASSWORD` environment variable before launching to
   require a password once per browser session before anything renders.
   It's a single shared password, not a user-accounts system.
+- **Google Sign-In**, via Streamlit's own native `st.login()` (Authlib
+  under the hood) -- opt in by copying `.streamlit/secrets.toml.example`
+  to `.streamlit/secrets.toml` and filling in a real OAuth client you
+  register yourself at [Google Cloud Console](https://console.cloud.google.com/)
+  (OAuth consent screen -> Web application credential -> add
+  `http://localhost:8501/oauth2callback` as an authorized redirect URI).
+  Full steps are on the Settings page. `secrets.toml` is gitignored --
+  never commit it, it holds a real client secret. If both this and
+  `PERSONAL_CFO_PASSWORD` are set, either one unlocks the app.
 - `.streamlit/config.toml` hides Streamlit's own "Deploy" button and
   developer menu app-wide (`toolbarMode = "viewer"`) -- a one-click cloud
   deploy prompt is a bad fit sitting on top of financial and personal data.
 
-Neither of these makes the app suitable for multiple untrusted users --
-there's still one shared dataset, not per-user accounts.
+**Biometric login (Face ID / Touch ID / Windows Hello) isn't built.**
+Doing that as a standalone feature means implementing WebAuthn/passkeys --
+a browser-side JavaScript credential ceremony plus server-side
+cryptographic challenge/response -- with nothing in Streamlit to build on.
+That's a real, security-critical feature to get right, not something to
+bolt on quickly; getting it wrong would be worse than not having it. If
+you already have a passkey configured on your Google account, Google's
+own sign-in screen will typically prompt for it automatically, which may
+already deliver what "biometric login" was after without a separate
+implementation.
+
+None of the above makes the app suitable for multiple untrusted users --
+there's still one shared dataset, not per-user accounts. Google Sign-In
+authenticates *a* Google account; it doesn't create separate permissions
+per person.
 
 ## Profile & the community idea
 
