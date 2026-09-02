@@ -20,11 +20,11 @@ deliberately avoids requiring.
 """
 from __future__ import annotations
 
-import sqlite3
 import time
 from pathlib import Path
 
 from . import db
+from . import dbconn
 
 BACKUP_DIR = db.DB_PATH.parent / "backups"
 BACKUP_INTERVAL_SECONDS = 24 * 60 * 60  # once a day, at most
@@ -51,9 +51,12 @@ def _run_backup(existing: list[Path]) -> None:
         suffix += 1
         dest_path = BACKUP_DIR / f"cfo-{time.strftime('%Y%m%d-%H%M%S')}-{suffix}.db"
     # SQLite's own online backup API, not a raw file copy -- safe to run
-    # against a database that's actively being written to.
-    src_conn = sqlite3.connect(db.DB_PATH)
-    dest_conn = sqlite3.connect(dest_path)
+    # against a database that's actively being written to. Goes through
+    # dbconn so this backup is encrypted the same as the live database
+    # when DB_ENCRYPTION_KEY is set -- a plaintext copy sitting next to
+    # an encrypted live file would defeat the point.
+    src_conn = dbconn.connect(db.DB_PATH)
+    dest_conn = dbconn.connect(dest_path)
     try:
         src_conn.backup(dest_conn)
     finally:

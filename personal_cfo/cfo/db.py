@@ -24,13 +24,15 @@ thought.
 from __future__ import annotations
 
 import os
-import sqlite3
+import sqlite3  # noqa: F401 -- only for the sqlite3.Connection type hints below; connections themselves go through dbconn
 import tempfile
 from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
 
 import pandas as pd
+
+from . import dbconn
 
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "cfo.db"
 
@@ -174,7 +176,7 @@ def current_user_id() -> str:
 @contextmanager
 def get_conn():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    conn = dbconn.connect(DB_PATH)
     conn.execute("PRAGMA foreign_keys = ON")
     try:
         yield conn
@@ -502,13 +504,15 @@ _TENANT_TABLES = ["accounts", "net_worth_snapshots", "transactions", "budgets", 
 
 def backup_bytes() -> bytes:
     """A consistent point-in-time snapshot of the *current tenant's data
-    only* -- built via VACUUM INTO a filtered copy, not a raw copy of the
-    live file, which would hand over every other tenant's data too on a
-    multi-tenant (Google Sign-In) deployment."""
+    only* -- built via a filtered copy, not a raw copy of the live file,
+    which would hand over every other tenant's data too on a multi-tenant
+    (Google Sign-In) deployment. Encrypted the same as the live database
+    when DB_ENCRYPTION_KEY is set -- a downloaded backup is exactly as
+    sensitive as the live file, so it gets the same protection."""
     user_id = current_user_id()
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir) / "backup.db"
-        with sqlite3.connect(tmp_path) as out_conn:
+        with dbconn.connect(tmp_path) as out_conn:
             out_conn.executescript(SCHEMA)
             with get_conn() as src_conn:
                 for table in _TENANT_TABLES:
@@ -530,19 +534,24 @@ def backup_bytes() -> bytes:
 def validate_backup(file_bytes: bytes) -> tuple[bool, str]:
     """Sanity-check an uploaded file before it's allowed anywhere near the
     live database: must be a valid, uncorrupted SQLite database that looks
-    like a Personal CFO backup specifically."""
+    like a Personal CFO backup specifically. If DB_ENCRYPTION_KEY is set,
+    this expects the uploaded file to be encrypted with that same key
+    (it's opened with dbconn.connect(), same as everything else) -- an
+    unencrypted file, or one encrypted with a different key, fails here
+    with "doesn't look like a valid SQLite database" rather than silently
+    reading nothing."""
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir) / "candidate.db"
         tmp_path.write_bytes(file_bytes)
         try:
-            conn = sqlite3.connect(tmp_path)
+            conn = dbconn.connect(tmp_path)
             integrity = conn.execute("PRAGMA integrity_check").fetchone()[0]
             if integrity != "ok":
                 conn.close()
                 return False, f"This file failed SQLite's integrity check ({integrity})."
             tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
             conn.close()
-        except sqlite3.DatabaseError as exc:
+        except dbconn.DatabaseError as exc:
             return False, f"This doesn't look like a valid SQLite database ({exc})."
     missing = EXPECTED_TABLES - tables
     if missing:
@@ -561,7 +570,7 @@ def restore_from_bytes(file_bytes: bytes) -> None:
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir) / "incoming.db"
         tmp_path.write_bytes(file_bytes)
-        src_conn = sqlite3.connect(tmp_path)
+        src_conn = dbconn.connect(tmp_path)
         # The uploaded file may predate a later migration -- including
         # user_id itself, for a backup taken before multi-tenancy existed.
         # Bring it up to the current schema first so every table is
