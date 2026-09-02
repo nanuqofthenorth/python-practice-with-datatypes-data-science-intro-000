@@ -6,7 +6,9 @@ run-it-yourself app.
 """
 from __future__ import annotations
 
+import os
 import sqlite3
+import tempfile
 from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
@@ -362,3 +364,51 @@ def has_any_data() -> bool:
             "(SELECT COUNT(*) FROM goals)"
         )
         return cur.fetchone()[0] > 0
+
+
+# --------------------------------------------------------- backup / restore
+EXPECTED_TABLES = {"accounts", "transactions", "budgets", "debts", "goals", "net_worth_snapshots", "profile"}
+
+
+def backup_bytes() -> bytes:
+    """A consistent point-in-time snapshot via VACUUM INTO -- safe
+    regardless of any pending journal/WAL state, unlike copying the raw
+    file while a connection could theoretically be mid-write."""
+    with get_conn() as conn:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir) / "backup.db"
+            conn.execute("VACUUM INTO ?", (str(tmp_path),))
+            return tmp_path.read_bytes()
+
+
+def validate_backup(file_bytes: bytes) -> tuple[bool, str]:
+    """Sanity-check an uploaded file before it's allowed anywhere near
+    overwriting the live database: must be a valid, uncorrupted SQLite
+    database that looks like a Personal CFO backup specifically."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir) / "candidate.db"
+        tmp_path.write_bytes(file_bytes)
+        try:
+            conn = sqlite3.connect(tmp_path)
+            integrity = conn.execute("PRAGMA integrity_check").fetchone()[0]
+            if integrity != "ok":
+                conn.close()
+                return False, f"This file failed SQLite's integrity check ({integrity})."
+            tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            conn.close()
+        except sqlite3.DatabaseError as exc:
+            return False, f"This doesn't look like a valid SQLite database ({exc})."
+    missing = EXPECTED_TABLES - tables
+    if missing:
+        return False, f"Missing expected tables ({sorted(missing)}) -- this doesn't look like a Personal CFO backup."
+    return True, ""
+
+
+def restore_from_bytes(file_bytes: bytes) -> None:
+    """Caller must call validate_backup() first and only proceed on
+    success. Writes to a temp file and os.replace()s it into place so a
+    crash mid-write can't leave a half-written database behind."""
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = DB_PATH.with_suffix(".db.tmp")
+    tmp_path.write_bytes(file_bytes)
+    os.replace(tmp_path, DB_PATH)

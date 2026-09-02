@@ -1,0 +1,9 @@
+# This app stores real financial data plus personal details (name, age,
+# photo, bio) locally. Streamlit's default toolbar includes a "Deploy"
+# button that's misleading here -- there's no cloud target configured,
+# and clicking through it is not something this app wants to make easy
+# for data like this. "viewer" hides Deploy plus the rerun/clear-cache
+# developer controls; it does not add authentication -- see the Settings
+# page (PERSONAL_CFO_PASSWORD) for that.
+[client]
+toolbarMode = "viewer"

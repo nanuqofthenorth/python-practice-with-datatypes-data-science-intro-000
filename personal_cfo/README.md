@@ -48,6 +48,38 @@ transactions right away.
   contribution needed to hit a target date.
 - **Profile** -- your name, age, photo, and a short bio. Personalizes the
   sidebar today; see "Profile & the community idea" below for why it exists.
+- **Settings** -- download a full backup, restore from one, export
+  transactions as CSV, and see whether password protection is on. See
+  "Backup, restore & locking it down" below.
+
+## Backup, restore & locking it down
+
+**Backup.** Settings has a **Download backup** button -- a complete,
+consistent snapshot of everything (accounts, transactions, budgets, debts,
+goals, and your profile, photo included) as one `.db` file, taken via
+SQLite's own `VACUUM INTO` rather than a raw file copy so it's never
+half-written. There's also a plain CSV export of just your transactions.
+Nothing does this automatically -- it's a button, not a schedule -- so
+make a habit of it, especially before restoring or upgrading.
+
+**Restore.** Also on Settings: upload a `.db` file and it's checked (SQLite
+integrity check, plus the expected tables) before you're allowed to
+confirm the overwrite. Restoring replaces *everything* currently in the
+app -- there's no merge and no undo beyond keeping your own backups.
+
+**Locking it down.** By default this app has no password and no login --
+fine for the intended use (you, on your own machine, at `localhost`). Two
+things exist for anyone who runs it somewhere reachable over a network:
+
+- Set the `PERSONAL_CFO_PASSWORD` environment variable before launching to
+  require a password once per browser session before anything renders.
+  It's a single shared password, not a user-accounts system.
+- `.streamlit/config.toml` hides Streamlit's own "Deploy" button and
+  developer menu app-wide (`toolbarMode = "viewer"`) -- a one-click cloud
+  deploy prompt is a bad fit sitting on top of financial and personal data.
+
+Neither of these makes the app suitable for multiple untrusted users --
+there's still one shared dataset, not per-user accounts.
 
 ## Profile & the community idea
 

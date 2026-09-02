@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 
 import streamlit as st
 
+from . import auth
 from . import calendar_export as cal
 from . import db
 from .charts import STATUS
@@ -17,6 +18,7 @@ _SESSION_KEY = "anthropic_api_key"
 
 def setup_page(page_title: str) -> None:
     st.set_page_config(page_title=f"{page_title} - {APP_TITLE}", layout="wide")
+    auth.check_authentication()
     db.init_db()
     with st.sidebar:
         st.markdown(f"### {APP_TITLE}")
