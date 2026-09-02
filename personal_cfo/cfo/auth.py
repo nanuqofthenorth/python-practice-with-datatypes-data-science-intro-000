@@ -12,10 +12,11 @@ opt in to at least one method:
   register yourself; there's no credential we can hand you for it.
 
 If both are configured, either one unlocks the app for that browser
-session. Neither is a multi-user accounts system: a shared password is
-one secret for whoever has it, and Google Sign-In authenticates *a*
-Google account, not a set of distinct per-person permissions inside the
-app -- everyone who unlocks it, by either method, sees the same data.
+session. They differ in what happens after: everyone who unlocks the app
+via the shared password sees the same data (there's no way to tell them
+apart), while each distinct Google account gets its own isolated data --
+see cfo.db.current_user_id() and its "local" fallback for how that's
+scoped.
 """
 from __future__ import annotations
 
@@ -58,6 +59,19 @@ def current_google_identity() -> str | None:
     if not _google_logged_in():
         return None
     return getattr(st.user, "email", None) or getattr(st.user, "name", None)
+
+
+def current_google_user_id() -> str | None:
+    """A stable per-account identifier for data scoping -- Google's OIDC
+    `sub` claim, not email (an email can change hands or be renamed; `sub`
+    can't). None if not applicable. This is the multi-tenancy key: see
+    cfo.db.current_user_id(), which falls back to a single shared "local"
+    tenant when nobody is signed in via Google, preserving today's
+    single-user behavior for anyone not using OAuth."""
+    if not _google_logged_in():
+        return None
+    sub = getattr(st.user, "sub", None)
+    return f"google:{sub}" if sub else None
 
 
 def check_authentication() -> None:

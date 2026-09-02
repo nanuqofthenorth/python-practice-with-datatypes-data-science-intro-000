@@ -63,16 +63,23 @@ figures are static images sent to the browser rather than themed CSS.
 
 **Backup.** Settings has a **Download backup** button -- a complete,
 consistent snapshot of everything (accounts, transactions, budgets, debts,
-goals, and your profile, photo included) as one `.db` file, taken via
-SQLite's own `VACUUM INTO` rather than a raw file copy so it's never
-half-written. There's also a plain CSV export of just your transactions.
-Nothing does this automatically -- it's a button, not a schedule -- so
-make a habit of it, especially before restoring or upgrading.
+goals, and your profile, photo included) as one `.db` file, built row by
+row rather than a raw file copy so it's never half-written. There's also a
+plain CSV export of just your transactions. Nothing does this
+automatically -- it's a button, not a schedule -- so make a habit of it,
+especially before restoring or upgrading. If Google Sign-In is configured,
+this backup contains *only the signed-in account's own data* -- see
+"Multiple people, one running app" below.
 
 **Restore.** Also on Settings: upload a `.db` file and it's checked (SQLite
 integrity check, plus the expected tables) before you're allowed to
-confirm the overwrite. Restoring replaces *everything* currently in the
-app -- there's no merge and no undo beyond keeping your own backups.
+confirm the overwrite. Restoring replaces everything belonging to whoever
+is currently signed in (with no Google Sign-In configured, that's
+everyone, since there's only the one shared tenant) -- there's no merge
+and no undo beyond keeping your own backups. A backup taken years ago,
+before any of this multi-tenancy existed, still restores cleanly: it's
+migrated to the current schema on the way in, the same as an old live
+database is (see below).
 
 **Locking it down.** By default this app has no password and no login --
 fine for the intended use (you, on your own machine, at `localhost`).
@@ -106,10 +113,19 @@ own sign-in screen will typically prompt for it automatically, which may
 already deliver what "biometric login" was after without a separate
 implementation.
 
-None of the above makes the app suitable for multiple untrusted users --
-there's still one shared dataset, not per-user accounts. Google Sign-In
-authenticates *a* Google account; it doesn't create separate permissions
-per person.
+**Multiple people, one running app.** Without Google Sign-In configured,
+everyone who opens the app -- or unlocks it with the shared password --
+sees and edits the exact same dataset; there's no way to tell people apart.
+With Google Sign-In configured, each distinct Google account gets its own
+completely separate accounts, transactions, budgets, debts, goals, and
+profile, keyed by that account's stable Google id (not email, so a renamed
+or re-verified email doesn't lose data) -- one person can never see, edit,
+or delete another's data, even though they're all using the same running
+app at the same URL. A shared `PERSONAL_CFO_PASSWORD` does *not* give this
+isolation: everyone who has the password lands in that same single shared
+dataset regardless. This is what makes "share the URL with friends and
+family, everyone signs in with their own Google account" a real option,
+not just a login screen bolted onto a single-user app.
 
 ## Profile & the community idea
 

@@ -27,6 +27,12 @@ st.caption(
     "Downloads everything -- accounts, transactions, budgets, debts, goals, and your profile "
     "(including your photo) -- as one file. This is the real backup; keep a copy somewhere safe."
 )
+if auth.is_google_oauth_configured():
+    st.caption(
+        "Google Sign-In is configured, so this file contains **only your own signed-in account's data** -- "
+        "not everyone else's who uses this app. Restoring it later (by you, or by anyone) only ever "
+        "replaces the data of whoever is signed in at the time, never another account's."
+    )
 st.download_button(
     "Download backup", db.backup_bytes(),
     file_name=f"personal-cfo-backup-{date.today().isoformat()}.db", mime="application/x-sqlite3",
@@ -43,10 +49,19 @@ if not transactions.empty:
 
 st.divider()
 st.subheader("Restore from backup")
-st.warning(
-    "Restoring **replaces everything currently in the app** with the contents of the uploaded file. "
-    "This can't be undone -- if you're not sure, download a fresh backup above first."
-)
+if auth.is_google_oauth_configured():
+    st.warning(
+        "Restoring **replaces everything belonging to whoever is currently signed in** with the "
+        "contents of the uploaded file -- not the whole app. This can't be undone -- if you're not "
+        "sure, download a fresh backup above first. A backup taken under one Google account and "
+        "restored while signed in as a different one lands as that second account's data (handy for "
+        "moving data between your own accounts; not a way to see someone else's)."
+    )
+else:
+    st.warning(
+        "Restoring **replaces everything currently in the app** with the contents of the uploaded file. "
+        "This can't be undone -- if you're not sure, download a fresh backup above first."
+    )
 restore_file = st.file_uploader("Backup file (.db)", type=["db", "sqlite", "sqlite3"])
 if restore_file is not None:
     file_bytes = restore_file.getvalue()
@@ -77,7 +92,12 @@ else:
     st.code('PERSONAL_CFO_PASSWORD="your-password" streamlit run app.py', language="bash")
     st.caption(
         "This is a single shared password, not a full accounts system -- it closes the gap between "
-        "\"built for localhost\" and \"reachable from anywhere,\" not a login for multiple separate people."
+        "\"built for localhost\" and \"reachable from anywhere,\" not a login for multiple separate people. "
+        "Everyone who has the password sees the **same data**: there's no way to tell them apart, so "
+        "anything they add, edit, or delete is shared by everyone else who unlocked with that password. "
+        "If you want friends or family to each have their own private data in the same running app, they "
+        "need **Google Sign-In** below, not this password -- that's the only thing in this app that "
+        "actually separates one person's data from another's."
     )
 
 st.divider()
@@ -87,6 +107,13 @@ if auth.is_google_oauth_configured():
     identity = auth.current_google_identity()
     if identity:
         st.caption(f"Currently signed in as {identity}.")
+    st.caption(
+        "Each Google account that signs in gets its **own private data** -- accounts, transactions, "
+        "budgets, debts, goals, and profile -- kept completely separate from every other Google account, "
+        "even though everyone's sharing the same running app. This is what makes it safe to share this "
+        "app's URL with friends or family: each person signs in as themselves and only ever sees their "
+        "own numbers, never each other's."
+    )
 else:
     st.info(
         "Not configured. This uses Streamlit's own native Google login (`st.login()`), which requires a "
