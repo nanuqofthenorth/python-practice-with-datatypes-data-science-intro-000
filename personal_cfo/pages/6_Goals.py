@@ -1,8 +1,9 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import streamlit as st
 
 from cfo import calculations as calc
+from cfo import calendar_export as cal
 from cfo import db
 from cfo.ui import setup_page
 
@@ -36,6 +37,22 @@ else:
                 info_cols[1].caption(f"Needs ~${needed:,.0f}/month to hit target")
             if pct >= 1.0:
                 info_cols[2].caption("Fully funded")
+
+            if needed is not None and pct < 1.0 and g["target_date"]:
+                target = datetime.strptime(g["target_date"], "%Y-%m-%d").date()
+                months_left = max(calc.months_between(date.today(), target), 1)
+                reminder_start = (datetime.now() + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
+                event = cal.CalendarEvent(
+                    title=f"Contribute to {g['name']}",
+                    description=f"About ${needed:,.0f}/month keeps {g['name']} on pace for its {g['target_date']} target.",
+                    start=reminder_start,
+                    recurrence_monthly_count=months_left,
+                )
+                st.download_button(
+                    "Remind me monthly", cal.build_ics([event]),
+                    file_name=f"{cal.slugify(g['name'])}-reminder.ics", mime="text/calendar",
+                    key=f"goal_reminder_{g['id']}",
+                )
 
             new_amount = st.number_input(
                 "Update saved amount", min_value=0.0, step=50.0,

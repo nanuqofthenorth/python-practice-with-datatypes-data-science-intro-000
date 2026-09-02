@@ -53,6 +53,49 @@ def _currency_axis() -> dict:
     return dict(tickprefix="$", tickformat=",.0f")
 
 
+def _tint(hex_color: str, alpha: float = 0.16) -> str:
+    hex_color = hex_color.lstrip("#")
+    r, g, b = (int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
+    return f"rgba({r},{g},{b},{alpha})"
+
+
+def health_gauge_chart(score: float | None) -> go.Figure:
+    fig = go.Figure()
+    if score is None:
+        fig.update_layout(**_base_layout(
+            height=240,
+            annotations=[_empty_state_annotation("Add accounts, transactions, and goals to calculate your score.")],
+        ))
+        return fig
+
+    if score < 40:
+        zone_color = STATUS["critical"]
+    elif score < 70:
+        zone_color = STATUS["warning"]
+    else:
+        zone_color = STATUS["good"]
+
+    fig.add_trace(go.Indicator(
+        mode="gauge+number",
+        value=score,
+        domain={"x": [0.08, 0.92], "y": [0, 1]},
+        number={"suffix": "%", "font": {"size": 36, "color": INK_PRIMARY}},
+        gauge={
+            "axis": {"range": [0, 100], "tickcolor": INK_MUTED, "tickfont": {"color": INK_MUTED, "size": 11}},
+            "bar": {"color": zone_color, "thickness": 0.32},
+            "bgcolor": SURFACE,
+            "borderwidth": 0,
+            "steps": [
+                {"range": [0, 40], "color": _tint(STATUS["critical"])},
+                {"range": [40, 70], "color": _tint(STATUS["warning"])},
+                {"range": [70, 100], "color": _tint(STATUS["good"])},
+            ],
+        },
+    ))
+    fig.update_layout(**_base_layout(height=240, margin=dict(l=45, r=45, t=30, b=10)))
+    return fig
+
+
 def net_worth_trend_chart(snapshots: pd.DataFrame) -> go.Figure:
     fig = go.Figure()
     if snapshots.empty:

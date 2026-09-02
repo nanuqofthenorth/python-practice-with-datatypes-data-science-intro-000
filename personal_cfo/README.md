@@ -20,11 +20,12 @@ transactions right away.
 
 ## What's inside
 
-- **Dashboard** -- net worth trend, income vs. expenses, spending by
-  category, rule-based insights (savings rate, over-budget categories,
-  high-APR debt, goal pacing), and, if configured, a **CFO Briefing** --
-  a handful of proactive, AI-generated recommendations that appear without
-  being asked.
+- **Dashboard** -- a financial health gauge ("are you on track?"), net worth
+  trend, income vs. expenses, spending by category, rule-based insights
+  (savings rate, over-budget categories, high-APR debt, goal pacing), and,
+  if configured, a **CFO Briefing** -- a handful of proactive, AI-generated
+  recommendations that appear without being asked. Any actionable item can
+  be turned into a calendar reminder.
 - **Advisor** -- ask free-form questions ("should I pay down debt or keep
   investing?", "am I on track for my goals?") and get answers grounded in
   your actual accounts, transactions, budget, debts, and goals.
@@ -62,6 +63,34 @@ the PDF's text and updates the linked account -- it does not attempt to
 extract itemized transactions from PDF tables, since those layouts vary too
 much to parse reliably. If you need line-item detail for a credit card,
 check whether the issuer also offers a CSV/Excel export.
+
+## Financial health gauge
+
+"Are you on track?" boils down to one 0-100 score, built from five
+components -- savings rate, budget adherence, debt health (balance-weighted
+average APR), emergency fund coverage (months of expenses held in cash),
+and goal progress. Each component is scored independently on its own 0-100
+scale; a component with no underlying data yet (e.g. no goals added) is
+simply left out and the remaining weights are renormalized, rather than
+dragging the score down for something you haven't entered. The Dashboard
+shows the gauge plus a plain-language breakdown of what's driving it. This
+is entirely local and rule-based -- no API key needed, unlike the Briefing.
+
+## Calendar reminders
+
+Any actionable item -- a Watch/Action item in the CFO Briefing or Insights,
+a goal's monthly contribution, or a debt payoff plan's extra payment -- has
+an **Add to Calendar** button (downloads a `.ics` file: Apple Calendar,
+Outlook, Google Calendar import, or any standards-compliant app) and, on
+the Dashboard, a **Google Calendar** quick-add link. A bulk button bundles
+every actionable item into one file. Goal and debt reminders recur monthly
+until the target date / payoff month.
+
+This is export, not sync -- there's no OAuth, no connected account, and no
+background polling. Genuine two-way calendar sync would need real
+credentials and consent screens per provider, which doesn't fit a
+self-hosted, no-accounts app; a downloadable reminder does the actual job
+("get this recommendation onto my calendar") without that overhead.
 
 ## AI Advisor & CFO Briefing
 

@@ -252,3 +252,105 @@ def generate_insights(
         insights.append({"level": "good", "text": "Add accounts, transactions, and debts to start getting personalized insights."})
 
     return insights
+
+
+# ---------------------------------------------------------- health score
+@dataclass
+class HealthComponent:
+    name: str
+    score: float  # 0-100
+    weight: float  # relative weight before renormalization
+    detail: str
+
+
+@dataclass
+class HealthScore:
+    score: float | None  # 0-100, or None if there's no data to score yet
+    label: str
+    components: list[HealthComponent] = field(default_factory=list)
+
+
+def _clamp(value: float, low: float = 0.0, high: float = 100.0) -> float:
+    return max(low, min(high, value))
+
+
+def calculate_health_score(
+    net_worth: dict,
+    cash_flow: pd.DataFrame,
+    budget_df: pd.DataFrame,
+    debts: pd.DataFrame,
+    goals: pd.DataFrame,
+    accounts: pd.DataFrame,
+) -> HealthScore:
+    """A single 0-100 "on track" gauge, built from five equally-legible
+    components. Each component is scored independently on its own 0-100
+    scale and only included if there's enough data to compute it; the
+    remaining weights are renormalized so the overall score is never
+    diluted by a component that simply has no data yet."""
+    components: list[HealthComponent] = []
+
+    if not cash_flow.empty:
+        rate = float(cash_flow.iloc[-1]["savings_rate"])
+        score = 0.0 if rate <= 0 else _clamp(rate / 0.20 * 100)
+        components.append(HealthComponent(
+            "Savings Rate", score, 0.30, f"{rate:.0%} of income saved last month (target 20%)."
+        ))
+
+    if not budget_df.empty:
+        budgeted_rows = budget_df[budget_df["budgeted"] > 0]
+        total_budgeted = budgeted_rows["budgeted"].sum()
+        if total_budgeted > 0:
+            total_actual = budgeted_rows["actual"].sum()
+            ratio = total_actual / total_budgeted
+            score = _clamp(100 - max(0.0, ratio - 1) * 200)
+            components.append(HealthComponent(
+                "Budget Adherence", score, 0.20,
+                f"Spent {ratio:.0%} of this month's budget across tracked categories."
+            ))
+
+    if debts.empty and not accounts.empty:
+        components.append(HealthComponent("Debt Health", 100.0, 0.20, "No tracked debt."))
+    elif not debts.empty:
+        total_balance = debts["balance"].sum()
+        avg_apr = (debts["apr"] * debts["balance"]).sum() / total_balance if total_balance > 0 else 0.0
+        score = _clamp(100 - avg_apr * 3)
+        components.append(HealthComponent(
+            "Debt Health", score, 0.20, f"Balance-weighted average APR of {avg_apr:.1f}% across debts."
+        ))
+
+    if not accounts.empty and not cash_flow.empty:
+        cash_balance = accounts.loc[
+            (accounts["kind"] == "asset") & (accounts["category"] == "Cash"), "balance"
+        ].sum()
+        avg_monthly_expenses = cash_flow["expenses"].tail(3).mean()
+        if avg_monthly_expenses > 0:
+            months_covered = cash_balance / avg_monthly_expenses
+            score = _clamp(months_covered / 6 * 100)
+            components.append(HealthComponent(
+                "Emergency Fund", score, 0.15,
+                f"{months_covered:.1f} months of expenses in cash (target 6)."
+            ))
+
+    if not goals.empty:
+        fundable = goals[goals["target_amount"] > 0]
+        if not fundable.empty:
+            pct_funded = (fundable["current_amount"] / fundable["target_amount"]).clip(upper=1.0)
+            score = _clamp(pct_funded.mean() * 100)
+            components.append(HealthComponent(
+                "Goal Progress", score, 0.15, f"Goals are {pct_funded.mean():.0%} funded on average."
+            ))
+
+    if not components:
+        return HealthScore(score=None, label="Not enough data yet", components=[])
+
+    total_weight = sum(c.weight for c in components)
+    overall = sum(c.score * c.weight for c in components) / total_weight
+
+    if overall >= 70:
+        label = "On Track"
+    elif overall >= 40:
+        label = "Watch"
+    else:
+        label = "Off Track"
+
+    return HealthScore(score=round(overall, 1), label=label, components=components)

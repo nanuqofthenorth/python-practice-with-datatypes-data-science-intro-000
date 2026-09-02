@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime, timedelta
 
 import streamlit as st
 
+from . import calendar_export as cal
 from . import db
 from .charts import STATUS
 from .seed import seed_sample_data
@@ -85,10 +87,72 @@ def insight_badge(level: str) -> str:
     )
 
 
+ACTIONABLE_LEVELS = {"warning", "critical", "watch", "action"}
+
+
+def _item_title(item: dict) -> str:
+    return item.get("title") or item.get("text", "")
+
+
+def _item_detail(item: dict) -> str:
+    return item.get("detail") or item.get("text", "")
+
+
+def _calendar_buttons_for_item(item: dict, key: str) -> None:
+    event = cal.CalendarEvent(title=_item_title(item)[:120], description=_item_detail(item))
+    ics_bytes = cal.build_ics([event])
+    btn_cols = st.columns([1, 1, 2])
+    with btn_cols[0]:
+        st.download_button(
+            "Add to Calendar", ics_bytes, file_name=f"{cal.slugify(event.title)}.ics",
+            mime="text/calendar", key=f"{key}_ics", use_container_width=True,
+        )
+    with btn_cols[1]:
+        st.link_button("Google Calendar", cal.google_calendar_link(event), use_container_width=True)
+
+
+def render_action_items(items: list[dict], key_prefix: str = "item", show_calendar_buttons: bool = True) -> None:
+    """Render insights or CFO Briefing items -- both are {level, text} or
+    {level, title, detail} dicts. Actionable levels (warning/critical from
+    rule-based insights, watch/action from the AI briefing) get a small
+    Add to Calendar row so a recommendation can become a real reminder."""
+    for i, item in enumerate(items):
+        level = item.get("level", "good")
+        has_title = bool(item.get("title"))
+        with st.container(border=has_title):
+            cols = st.columns([0.14, 0.86])
+            with cols[0]:
+                st.markdown(insight_badge(level), unsafe_allow_html=True)
+            with cols[1]:
+                detail = escape_markdown_dollars(_item_detail(item))
+                if has_title:
+                    st.markdown(f"**{escape_markdown_dollars(item['title'])}**  \n{detail}")
+                else:
+                    st.markdown(detail)
+                if show_calendar_buttons and level in ACTIONABLE_LEVELS:
+                    _calendar_buttons_for_item(item, key=f"{key_prefix}_{i}")
+
+
 def render_insights(insights: list[dict]) -> None:
-    for item in insights:
-        cols = st.columns([0.14, 0.86])
-        with cols[0]:
-            st.markdown(insight_badge(item["level"]), unsafe_allow_html=True)
-        with cols[1]:
-            st.markdown(escape_markdown_dollars(item["text"]))
+    """Back-compat alias -- prefer render_action_items for new code."""
+    render_action_items(insights, key_prefix="insight")
+
+
+def bulk_calendar_download_button(
+    items: list[dict], key: str, label: str = "Add all action items to calendar"
+) -> None:
+    """One .ics bundling every actionable item across whatever lists are
+    passed in (rule-based insights + AI briefing, typically) -- staggered
+    a day apart so the reminders don't all land on top of each other."""
+    actionable = [item for item in items if item.get("level") in ACTIONABLE_LEVELS]
+    if not actionable:
+        return
+    events = []
+    for i, item in enumerate(actionable):
+        start = (datetime.now() + timedelta(days=i + 1)).replace(hour=9, minute=0, second=0, microsecond=0)
+        events.append(cal.CalendarEvent(title=_item_title(item)[:120], description=_item_detail(item), start=start))
+    ics_bytes = cal.build_ics(events, calendar_name="Personal CFO Action Items")
+    st.download_button(
+        f"{label} ({len(events)})", ics_bytes, file_name="personal-cfo-action-items.ics",
+        mime="text/calendar", key=key,
+    )

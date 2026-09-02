@@ -1,6 +1,9 @@
+from datetime import datetime, timedelta
+
 import streamlit as st
 
 from cfo import calculations as calc
+from cfo import calendar_export as cal
 from cfo import charts
 from cfo import db
 from cfo.ui import setup_page, stat_tile
@@ -52,6 +55,24 @@ else:
             sorted(result.payoff_month_by_debt, key=lambda n: result.payoff_month_by_debt[n])
         ) if result.payoff_month_by_debt else ""
     )
+
+    if extra_payment > 0 and result.months_to_debt_free > 0:
+        target_debt = min(result.payoff_month_by_debt, key=lambda n: result.payoff_month_by_debt[n]) if result.payoff_month_by_debt else None
+        reminder_start = (datetime.now() + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
+        event = cal.CalendarEvent(
+            title="Make extra debt payment",
+            description=(
+                f"Pay an extra ${extra_payment:,.0f} this month toward "
+                f"{target_debt or 'your debt'} ({strategy_label.split(' (')[0]} order) to stay on the "
+                f"{result.months_to_debt_free}-month debt-free plan."
+            ),
+            start=reminder_start,
+            recurrence_monthly_count=result.months_to_debt_free,
+        )
+        st.download_button(
+            "Remind me monthly to make this payment", cal.build_ics([event]),
+            file_name="debt-payoff-reminder.ics", mime="text/calendar", key="debt_reminder",
+        )
 
 st.divider()
 st.subheader("Your debts")
