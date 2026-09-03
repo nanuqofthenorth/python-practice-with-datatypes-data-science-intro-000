@@ -325,14 +325,23 @@ sidebar (or the **Set up my accounts** button that appears there before
 you've entered anything). Upload one or more statement files at once and
 it walks through them one at a time:
 
-1. **Guesses the account** from the filename -- `chase_checking.csv`
-   becomes a "Checking" asset in the Cash category, `visa_statement.pdf`
-   becomes a "Visa" liability in Credit Card, and so on
-   (`cfo/account_guess.py` has the full keyword list: checking/savings,
-   credit cards by name, mortgage, HELOC, student and auto loans, 401(k)/
-   IRA, and brokerage accounts). Every field is editable before you
-   confirm -- an unrecognized filename just falls back to a generic asset
-   with a note to double-check it, never a silent guess.
+1. **Guesses the account** -- and, for a PDF, the interest rate too --
+   from both the filename *and the statement's own content* (PDF text, or
+   a CSV/Excel file's column headers), not the filename alone.
+   `statement_download.pdf` with no useful name still comes back correctly
+   guessed as a liability in Credit Card if the statement text contains
+   things like "Minimum Payment Due" or a labeled APR; a mortgage
+   statement is recognized from "Escrow Balance," a brokerage export from
+   column headers like "Cost Basis." (`cfo/account_guess.py` has the full
+   keyword list: checking/savings, credit cards by name, mortgage, HELOC,
+   student and auto loans, 401(k)/IRA, and brokerage accounts.) For a
+   liability, `cfo/importers.py::extract_rate_candidates()` pulls the
+   APR/interest rate straight from a PDF's text -- if the statement lists
+   more than one (purchase vs. cash-advance APR, say), you're asked which
+   one applies; otherwise it's pre-filled and you just confirm it, no
+   typing required. Every field stays editable before you confirm --
+   nothing recognized just falls back to a generic asset with a note to
+   double-check it, never a silent guess.
 2. **Creates that account**, then runs the exact same column-detection,
    duplicate/transfer-flagging, and review-table logic as Import
    Statements below (they share the same code, `cfo/import_ui.py`) --

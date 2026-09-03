@@ -1,8 +1,9 @@
-"""cfo/account_guess.py -- best-effort account guessing from a filename,
-always meant to be overridden by the user, never trusted silently."""
+"""cfo/account_guess.py -- best-effort account guessing from a filename
+and/or statement content, always meant to be overridden by the user,
+never trusted silently."""
 from __future__ import annotations
 
-from cfo.account_guess import guess_account_from_filename
+from cfo.account_guess import guess_account, guess_account_from_filename
 
 
 def test_checking_account():
@@ -87,3 +88,48 @@ def test_name_never_empty_even_for_generic_filename():
 def test_case_insensitive():
     g = guess_account_from_filename("CHECKING_ACCOUNT.CSV")
     assert g.category == "Cash"
+
+
+def test_content_hint_detects_credit_card_from_generic_filename():
+    """The filename alone gives no signal; the statement's own boilerplate
+    language should still get this right."""
+    g = guess_account("download (3).pdf", content_hint="Minimum Payment Due: $45.00\nNew Balance: $1,234.56")
+    assert g.kind == "liability"
+    assert g.category == "Credit Card"
+    assert g.confident
+
+
+def test_content_hint_detects_mortgage_from_generic_filename():
+    g = guess_account("statement.pdf", content_hint="Escrow Balance: $2,100.00 Principal and Interest: $1,450.00")
+    assert g.category == "Mortgage"
+
+
+def test_content_hint_detects_brokerage_from_generic_filename():
+    g = guess_account("export.csv", content_hint="Symbol,Shares Held,Cost Basis,Market Value")
+    assert g.category == "Investments"
+
+
+def test_content_hint_does_not_override_a_filename_match_with_a_worse_guess():
+    # Filename says "visa" (credit card); content is generic/empty --
+    # filename signal alone should still be enough.
+    g = guess_account("visa_statement.pdf", content_hint="")
+    assert g.category == "Credit Card"
+
+
+def test_account_name_still_comes_from_filename_not_content():
+    g = guess_account("chase_checking.csv", content_hint="Minimum Payment Due: $45.00")
+    # Content says credit card, but the *name* should stay filename-derived.
+    assert "Chase Checking" in g.name
+
+
+def test_guess_account_from_filename_matches_guess_account_with_no_hint():
+    a = guess_account_from_filename("visa_statement.pdf")
+    b = guess_account("visa_statement.pdf")
+    assert a == b
+
+
+def test_no_signal_anywhere_falls_back_gracefully():
+    g = guess_account("download.csv", content_hint="Date,Amount,Description")
+    assert g.confident is False
+    assert g.kind == "asset"
+    assert g.category == "Other Asset"

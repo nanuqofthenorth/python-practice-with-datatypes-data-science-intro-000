@@ -233,7 +233,21 @@ BALANCE_LABELS = [
 ]
 DATE_LABELS = ["statement date", "closing date", "statement closing date", "as of"]
 
+# Ordered most-specific first -- a statement listing separate purchase/cash
+# advance/balance-transfer APRs should surface each labeled distinctly
+# rather than all collapsing to the generic "apr" match.
+RATE_LABELS = [
+    "purchase apr", "cash advance apr", "balance transfer apr", "penalty apr",
+    "annual percentage rate", "interest rate", "apr",
+]
+
 _MONEY = r"\$?\s*(-?[\d,]+\.\d{2})"
+_PERCENT = r"([\d]{1,2}(?:\.\d{1,3})?)\s*%"
+# Up to 20 non-digit, non-percent characters between the label and the
+# number -- covers "APR: 24.99%", "APR (Purchases) 24.99%", and "your
+# current APR is 24.99%" alike without drifting onto an unrelated number
+# many sentences later.
+_RATE_SEP = r"[^\d%]{0,20}"
 
 
 @dataclass
@@ -241,7 +255,30 @@ class PdfExtractionResult:
     text: str = ""
     balance_candidates: list[tuple[str, float]] = field(default_factory=list)
     date_candidates: list[str] = field(default_factory=list)
+    rate_candidates: list[tuple[str, float]] = field(default_factory=list)
     error: str | None = None
+
+
+def extract_rate_candidates(text: str) -> list[tuple[str, float]]:
+    """Interest rate / APR candidates found in statement text -- credit
+    card, mortgage, and loan statements routinely print this, so it
+    doesn't need to be typed in by hand. Like balance_candidates, this is
+    a starting point shown to and confirmed by the user, never applied
+    silently: a statement listing separate purchase/cash-advance/balance-
+    transfer APRs will surface more than one candidate on purpose,
+    since picking the wrong one has real consequences for the debt
+    payoff calculations that use it."""
+    flat = re.sub(r"\s+", " ", text)
+    candidates: list[tuple[str, float]] = []
+    seen_values: set[float] = set()
+    for label in RATE_LABELS:
+        for match in re.finditer(r"\b" + re.escape(label) + r"\b" + _RATE_SEP + _PERCENT, flat, re.IGNORECASE):
+            value = float(match.group(1))
+            if value in seen_values or value <= 0 or value > 60:
+                continue  # 0% or absurdly high isn't a real APR -- likely an unrelated number
+            seen_values.add(value)
+            candidates.append((label.title(), value))
+    return candidates
 
 
 def extract_pdf_statement(file_bytes: bytes) -> PdfExtractionResult:
@@ -281,7 +318,12 @@ def extract_pdf_statement(file_bytes: bytes) -> PdfExtractionResult:
         ):
             date_candidates.append(match.group(1))
 
-    return PdfExtractionResult(text=text, balance_candidates=balance_candidates, date_candidates=date_candidates)
+    rate_candidates = extract_rate_candidates(text)
+
+    return PdfExtractionResult(
+        text=text, balance_candidates=balance_candidates, date_candidates=date_candidates,
+        rate_candidates=rate_candidates,
+    )
 
 
 def parse_flexible_date(value: str):

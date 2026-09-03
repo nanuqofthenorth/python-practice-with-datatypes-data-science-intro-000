@@ -3,7 +3,8 @@ from __future__ import annotations
 import streamlit as st
 
 from cfo import db
-from cfo.account_guess import guess_account_from_filename
+from cfo import importers as imp
+from cfo.account_guess import guess_account
 from cfo.import_ui import render_statement_import
 from cfo.ui import setup_page
 
@@ -30,6 +31,25 @@ def _reset_wizard() -> None:
     st.session_state["wizard_queue"] = []
     st.session_state["wizard_index"] = 0
     st.session_state["wizard_created"] = []
+
+
+def _content_hint_and_rates(filename: str, file_bytes: bytes) -> tuple[str, list[tuple[str, float]]]:
+    """Whatever's cheap to pull from the file itself to make a better
+    guess than the filename alone: PDF statements' own text (which is
+    also where APR/interest-rate figures come from), or a CSV/Excel
+    file's column headers. Never raises -- a file that fails to parse
+    here still gets a real error shown later, in the review step; this
+    is only a best-effort hint for the account-guessing step before that."""
+    try:
+        if filename.lower().endswith(".pdf"):
+            result = imp.extract_pdf_statement(file_bytes)
+            if result.error:
+                return "", []
+            return result.text, result.rate_candidates
+        df = imp.read_statement_table(file_bytes, filename)
+        return " ".join(str(c) for c in df.columns), []
+    except Exception:  # noqa: BLE001 -- best-effort hint only; real parse errors surface later
+        return "", []
 
 
 # ------------------------------------------------------------- step 1: upload
@@ -77,10 +97,14 @@ st.progress(index / len(queue))
 account_key = f"wizard_account_id_{index}"
 
 if account_key not in st.session_state:
-    guess = guess_account_from_filename(filename)
+    content_hint, rate_candidates = _content_hint_and_rates(filename, file_bytes)
+    guess = guess_account(filename, content_hint)
     st.markdown("**2. Confirm this account**")
     if not guess.confident:
-        st.caption("Couldn't guess the account type from this filename -- double check these before continuing.")
+        st.caption(
+            "Couldn't tell the account type from the filename or statement content -- "
+            "double check these before continuing."
+        )
 
     c1, c2, c3 = st.columns(3)
     name = c1.text_input("Account name", value=guess.name, key=f"wizard_name_{index}")
@@ -95,10 +119,26 @@ if account_key not in st.session_state:
     category = c3.selectbox(
         "Category", categories, index=categories.index(default_category), key=f"wizard_category_{index}",
     )
-    rate = (
-        st.number_input("Interest rate (%)", min_value=0.0, step=0.1, key=f"wizard_rate_{index}")
-        if kind == "liability" else 0.0
-    )
+
+    if kind == "liability":
+        default_rate = 0.0
+        if rate_candidates:
+            if len(rate_candidates) == 1:
+                default_rate = rate_candidates[0][1]
+                st.caption(f"Found {rate_candidates[0][0]} on the statement: {default_rate:.2f}% -- edit below if needed.")
+            else:
+                labels = [f"{label}: {value:.2f}%" for label, value in rate_candidates]
+                rate_idx = st.radio(
+                    "Found more than one rate on the statement -- pick the one that applies:",
+                    options=list(range(len(labels))), format_func=lambda i: labels[i],
+                    key=f"wizard_rate_choice_{index}",
+                )
+                default_rate = rate_candidates[rate_idx][1]
+        rate = st.number_input(
+            "Interest rate (%)", min_value=0.0, step=0.1, value=default_rate, key=f"wizard_rate_{index}",
+        )
+    else:
+        rate = 0.0
 
     b1, b2 = st.columns([1, 1])
     if b1.button("Use this account", type="primary", key=f"wizard_confirm_{index}"):
