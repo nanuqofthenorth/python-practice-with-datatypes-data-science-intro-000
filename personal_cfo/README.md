@@ -83,6 +83,10 @@ handing the URL to more people than that.
 
 ## What's inside
 
+- **Setup Wizard** -- new here? Upload however many statements you have at
+  once and it creates the right account for each one (guessed from the
+  filename, always shown to you first) and walks you through reviewing and
+  importing each file's transactions. See "Setup Wizard" below.
 - **Dashboard** -- a financial health gauge ("are you on track?"), net worth
   trend, income vs. expenses, spending by category, rule-based insights
   (savings rate, over-budget categories, high-APR debt, goal pacing), and,
@@ -313,6 +317,34 @@ that changes slightly month to month (a trailing reference number or
 date) won't be caught. Needs at least 3 months of matching history, with
 no more than one month ever skipped in a row, to avoid flagging a
 coincidental one-off repeat.
+
+## Setup Wizard
+
+The fastest way into the app with real data: **Setup Wizard** in the
+sidebar (or the **Set up my accounts** button that appears there before
+you've entered anything). Upload one or more statement files at once and
+it walks through them one at a time:
+
+1. **Guesses the account** from the filename -- `chase_checking.csv`
+   becomes a "Checking" asset in the Cash category, `visa_statement.pdf`
+   becomes a "Visa" liability in Credit Card, and so on
+   (`cfo/account_guess.py` has the full keyword list: checking/savings,
+   credit cards by name, mortgage, HELOC, student and auto loans, 401(k)/
+   IRA, and brokerage accounts). Every field is editable before you
+   confirm -- an unrecognized filename just falls back to a generic asset
+   with a note to double-check it, never a silent guess.
+2. **Creates that account**, then runs the exact same column-detection,
+   duplicate/transfer-flagging, and review-table logic as Import
+   Statements below (they share the same code, `cfo/import_ui.py`) --
+   nothing is imported until you review it, same as everywhere else in
+   this app.
+3. **Moves to the next file** once you've imported (or skipped) the
+   current one, and ends with a summary of what was created.
+
+This is the primary way to get real data in with statements; **Accounts**
+and **Transactions** in the sidebar are the manual/advanced path --
+add or edit an account by hand, or log a single transaction one at a
+time, whenever the wizard isn't what you want.
 
 ## Importing statements
 

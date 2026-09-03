@@ -118,5 +118,8 @@ if any(item.get("level") in ACTIONABLE_LEVELS for item in all_actionable):
     st.caption("Bundles every Watch/Action item above into one calendar file.")
 
 if not db.has_any_data():
-    st.info("This dashboard is empty. Use **Load sample data** in the sidebar, or start adding your own "
-            "accounts, transactions, and debts using the pages in the sidebar.")
+    st.info(
+        "This dashboard is empty. Fastest way in: **Set up my accounts** in the sidebar walks through "
+        "uploading your statements and creates everything for you. Prefer to explore first? Click "
+        "**Load sample data**. Or build it up by hand using **Accounts** and **Transactions** in the sidebar."
+    )

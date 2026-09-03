@@ -40,6 +40,8 @@ def setup_page(page_title: str) -> None:
         st.caption("Your finances, run like a business.")
         render_profile_snippet()
         if not db.has_any_data():
+            if st.button("Set up my accounts", type="primary", use_container_width=True):
+                st.switch_page("pages/0_Setup_Wizard.py")
             if st.button("Load sample data", use_container_width=True):
                 seed_sample_data()
                 st.rerun()
