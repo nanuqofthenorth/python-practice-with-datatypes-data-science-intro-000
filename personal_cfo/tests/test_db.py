@@ -30,6 +30,14 @@ def test_cross_tenant_isolation(db, tenant):
     assert accounts_a.iloc[0]["balance"] == 1000
 
 
+def test_add_account_returns_the_new_id(db, tenant):
+    new_id = db.add_account("Checking", "asset", "Cash", 1000)
+    assert isinstance(new_id, int)
+    accounts = db.list_accounts()
+    assert int(accounts.iloc[0]["id"]) == new_id
+    assert accounts.iloc[0]["name"] == "Checking"
+
+
 def test_update_account_edits_name_category_balance_and_rate(db, tenant):
     tenant.as_("local")
     db.add_account("Old Name", "liability", "Credit Card", 500, 19.99)

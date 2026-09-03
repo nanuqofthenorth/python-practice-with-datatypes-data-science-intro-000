@@ -250,13 +250,18 @@ def list_accounts() -> pd.DataFrame:
     return _read("SELECT * FROM accounts WHERE user_id = ? ORDER BY kind, category, name", (current_user_id(),))
 
 
-def add_account(name: str, kind: str, category: str, balance: float, interest_rate: float = 0.0) -> None:
+def add_account(name: str, kind: str, category: str, balance: float, interest_rate: float = 0.0) -> int:
+    """Returns the new account's id -- callers that need to immediately
+    reference the account they just created (e.g. pre-selecting it in a
+    dropdown so the UI advances instead of resetting back to a "create
+    new" state) don't have to re-query for it."""
     with get_conn() as conn:
-        conn.execute(
+        cursor = conn.execute(
             "INSERT INTO accounts (user_id, name, kind, category, balance, interest_rate, updated_at) "
             "VALUES (?, ?, ?, ?, ?, ?, ?)",
             (current_user_id(), name, kind, category, balance, interest_rate, date.today().isoformat()),
         )
+        return cursor.lastrowid
 
 
 def update_account_balance(account_id: int, balance: float) -> None:
